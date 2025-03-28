@@ -12,6 +12,9 @@ dist
 .nitro
 .cache
 
+# Next.js
+.next
+
 # Logs
 logs
 *.log

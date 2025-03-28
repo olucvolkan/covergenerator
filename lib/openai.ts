@@ -1,1 +1,1 @@
-// OpenAI client config
+// This file is a placeholder for future OpenAI integration
