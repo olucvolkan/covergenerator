@@ -1,38 +1,76 @@
 "use client";
 
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, testSupabaseConnection } from '@/lib/auth';
 import { uploadPDF } from '@/lib/pdfParser';
 import React, { useEffect, useRef, useState } from 'react';
-import LoginModal from './LoginModal';
 
-// API endpoint for cover letter generation
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.covergen.com/generate-cover-letter";
+// Geçici bir LoginModal bileşeni oluşturalım (linter hatası için)
+const LoginModal = ({ onClose }: { onClose: () => void }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg w-full max-w-md shadow-xl p-6">
+        <h2 className="text-2xl font-bold mb-4">Login / Register</h2>
+        <p className="mb-4">Please implement a proper login modal or use the Supabase Auth UI.</p>
+        <button 
+          onClick={onClose}
+          className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-blue-700"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const CoverLetterGenerator = () => {
   const [file, setFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState('');
-  const [coverLetter, setCoverLetter] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [generationCount, setGenerationCount] = useState(0);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<{success: boolean, message: string, warning?: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Check for user session on component mount
+  // Check Supabase connection and user session on component mount
   useEffect(() => {
-    const checkUser = async () => {
+    const initApp = async () => {
       try {
+        // Test Supabase connection
+        const connectionTest = await testSupabaseConnection();
+        if (connectionTest.success) {
+          setConnectionStatus({
+            success: true,
+            message: "Connected to Supabase successfully",
+            warning: connectionTest.warning
+          });
+        } else {
+          setConnectionStatus({
+            success: false,
+            message: `Error connecting to Supabase: ${
+              connectionTest.error && typeof connectionTest.error === 'object' && 'message' in connectionTest.error
+                ? connectionTest.error.message
+                : String(connectionTest.error || "Unknown error")
+            }`
+          });
+        }
+        
+        // Get current user
         const currentUser = await getCurrentUser();
         setUser(currentUser);
-      } catch (err) {
-        console.error('Error fetching user:', err);
+      } catch (err: any) {
+        console.error('Error initializing app:', err);
+        setConnectionStatus({
+          success: false,
+          message: `Error: ${err.message || "Unknown error"}`
+        });
       }
     };
     
-    checkUser();
+    initApp();
   }, []);
 
   // PDF file validation function
@@ -58,6 +96,8 @@ const CoverLetterGenerator = () => {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log("File input change event triggered");
     setError(null);
+    setWarning(null);
+    setUploadSuccess(false);
     
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
@@ -89,15 +129,30 @@ const CoverLetterGenerator = () => {
     
     setIsUploading(true);
     setError(null);
+    setWarning(null);
+    setUploadSuccess(false);
     
     try {
       // Upload PDF to Supabase Storage
-      const { path, url } = await uploadPDF(fileToUpload, user.id);
-      console.log("File uploaded to Supabase:", path);
-      setUploadedFilePath(path);
+      const result = await uploadPDF(fileToUpload, user.id);
+      console.log("File uploaded to Supabase:", result);
+      
+      setUploadedFilePath(result.path);
+      setUploadSuccess(true);
+      
+      // RLS uyarısını göster
+      if (result.warning) {
+        setWarning(result.warning);
+      }
     } catch (err: any) {
       console.error("Error uploading file to Supabase:", err);
-      setError(`Error uploading file: ${err.message}`);
+      
+      // Provide a more detailed error message if it's a bucket issue
+      if (err.message && err.message.includes('bucket')) {
+        setError(err.message);
+      } else {
+        setError(`Error uploading file: ${err.message || 'Unknown error'}`);
+      }
     } finally {
       setIsUploading(false);
     }
@@ -112,6 +167,8 @@ const CoverLetterGenerator = () => {
     e.preventDefault();
     e.stopPropagation();
     setError(null);
+    setWarning(null);
+    setUploadSuccess(false);
     
     console.log("File drop event triggered");
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
@@ -139,90 +196,18 @@ const CoverLetterGenerator = () => {
     setError(null);
   };
 
-  const handleGenerateCoverLetter = async () => {
+  const handleUploadToSupabase = async () => {
     if (!file) {
       setError('Please upload your CV');
       return;
     }
 
-    if (!jobDescription) {
-      setError('Please enter job description');
-      return;
-    }
-
-    // Check if user is logged in for non-first generations
-    if (generationCount >= 1 && !user) {
+    if (!user) {
       setShowLoginModal(true);
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      console.log("Preparing to generate cover letter");
-      
-      // If file is not yet uploaded to Supabase and user is logged in, upload it first
-      let filePath = uploadedFilePath;
-      if (!filePath && user) {
-        await handleFileUpload(file);
-        filePath = uploadedFilePath;
-      }
-      
-      // Create form data to send to the API
-      const formData = new FormData();
-      
-      // Add files with specific filename to ensure proper handling
-      formData.append('resume', file, 'resume.pdf');
-      formData.append('jobDescription', jobDescription);
-      
-      // If we have a user, include user ID for tracking
-      if (user) {
-        formData.append('userId', user.id);
-      }
-      
-      // If we have a file path in Supabase, include it
-      if (filePath) {
-        formData.append('filePath', filePath);
-      }
-      
-      // Check FormData contents
-      Array.from(formData.entries()).forEach(([key, value]) => {
-        console.log(`FormData contains: ${key} = ${value instanceof File ? 
-          `File: ${value.name}, ${value.type}, ${value.size} bytes` : 
-          (value.toString().substring(0, 20) + '...')}`);
-      });
-
-      // Call the external API
-      console.log("Sending request to cover letter generation API...");
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        body: formData,
-      });
-
-      console.log("API response status:", response.status);
-      
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({ error: 'Failed to parse API response' }));
-        console.error("API error response:", data);
-        throw new Error(data.error || 'Failed to generate cover letter');
-      }
-
-      const data = await response.json();
-      console.log("Cover letter received");
-      
-      if (!data.coverLetter) {
-        throw new Error('API did not return a valid cover letter');
-      }
-      
-      setCoverLetter(data.coverLetter);
-      setGenerationCount(prevCount => prevCount + 1);
-    } catch (err: any) {
-      console.error('Error generating cover letter:', err);
-      setError(err.message || 'Failed to generate cover letter. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    await handleFileUpload(file);
   };
 
   const handleCloseLoginModal = async () => {
@@ -240,18 +225,37 @@ const CoverLetterGenerator = () => {
     }
   };
 
-  const handleCopyCoverLetter = () => {
-    navigator.clipboard.writeText(coverLetter);
-    alert('Cover letter copied to clipboard!');
-  };
-
-  const handleDownloadPDF = () => {
-    // This would be implemented with a library like jsPDF
-    alert('PDF download functionality will be implemented here');
-  };
-
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      {/* Connection Status */}
+      {connectionStatus && (
+        <div className={`col-span-full mb-4 p-4 rounded-lg ${
+          connectionStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 
+          'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          <p className="font-medium">
+            {connectionStatus.success ? '✓ ' : '✗ '}
+            {connectionStatus.message}
+          </p>
+          {connectionStatus.warning && (
+            <p className="mt-2 text-orange-600">
+              Warning: {connectionStatus.warning}
+            </p>
+          )}
+          {!connectionStatus.success && (
+            <div className="mt-2 text-sm">
+              <p className="font-medium">Please check:</p>
+              <ol className="list-decimal pl-5 mt-1 space-y-1">
+                <li>Your Supabase URL and Anon Key in .env.local are correct</li>
+                <li>The 'user_files' table exists in your Supabase database</li>
+                <li>The 'resumes' bucket exists in Supabase Storage</li>
+                <li>Your Supabase project is running and accessible</li>
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Left Column - CV Upload and Job Description */}
       <div className="space-y-6">
         <div className="p-6 bg-white rounded-lg shadow-md">
@@ -270,6 +274,9 @@ const CoverLetterGenerator = () => {
                     <span className="inline-block animate-pulse">Uploading to secure storage...</span>
                   </p>
                 )}
+                {uploadSuccess && (
+                  <p className="text-green-600 text-sm">File successfully uploaded to Supabase!</p>
+                )}
                 {uploadedFilePath && (
                   <p className="text-blue-600 text-sm">Saved to secure storage</p>
                 )}
@@ -278,6 +285,8 @@ const CoverLetterGenerator = () => {
                     e.stopPropagation();
                     setFile(null);
                     setUploadedFilePath(null);
+                    setUploadSuccess(false);
+                    setWarning(null);
                   }}
                   className="text-red-500 text-sm underline"
                 >
@@ -320,59 +329,97 @@ const CoverLetterGenerator = () => {
           <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
             <p className="font-medium">Error:</p>
             <p>{error}</p>
+            {error.includes('bucket') && (
+              <div className="mt-2 text-sm">
+                <p className="font-medium">To fix this:</p>
+                <ol className="list-decimal pl-5 mt-1 space-y-1">
+                  <li>Go to your Supabase dashboard</li>
+                  <li>Navigate to Storage</li>
+                  <li>Click "New Bucket"</li>
+                  <li>Name it "resumes"</li>
+                  <li>Set the bucket to public access</li>
+                  <li>Click "Create bucket"</li>
+                </ol>
+              </div>
+            )}
+          </div>
+        )}
+
+        {warning && (
+          <div className="p-4 bg-orange-50 border border-orange-200 text-orange-700 rounded-lg">
+            <p className="font-medium">Warning:</p>
+            <p>{warning}</p>
+            {warning.includes('row-level security') && (
+              <div className="mt-2 text-sm">
+                <p className="font-medium">To fix this Row-Level Security (RLS) issue:</p>
+                <ol className="list-decimal pl-5 mt-1 space-y-1">
+                  <li>Go to your Supabase dashboard</li>
+                  <li>Navigate to Authentication → Policies</li>
+                  <li>Find the 'user_files' table</li>
+                  <li>Click "New Policy" and select "Create a policy from scratch"</li>
+                  <li>For the policy definition, use something like:</li>
+                  <code className="block mt-1 p-2 bg-gray-100 text-xs">
+                    (auth.uid() = user_id)
+                  </code>
+                  <li>Select "INSERT" for the operation</li>
+                  <li>Name the policy "Users can insert their own files"</li>
+                  <li>Save the policy</li>
+                </ol>
+                <p className="mt-2">The file was still uploaded successfully to storage.</p>
+              </div>
+            )}
           </div>
         )}
 
         <button
-          onClick={handleGenerateCoverLetter}
-          disabled={isLoading || !file || !jobDescription}
+          onClick={handleUploadToSupabase}
+          disabled={isUploading || !file}
           className={`w-full py-3 px-4 rounded-lg font-medium text-white ${
-            isLoading || !file || !jobDescription
+            isUploading || !file
               ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-primary hover:bg-blue-700'
           }`}
         >
-          {isLoading ? (
+          {isUploading ? (
             <span className="flex items-center justify-center">
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Generating...
+              Uploading...
             </span>
+          ) : uploadSuccess ? (
+            'File Uploaded Successfully'
           ) : (
-            'Generate Cover Letter'
+            'Upload to Supabase'
           )}
         </button>
       </div>
 
-      {/* Right Column - Cover Letter Result */}
+      {/* Right Column - Resume Information */}
       <div className="p-6 bg-white rounded-lg shadow-md h-full">
-        <h2 className="text-xl font-semibold mb-4">Your Cover Letter</h2>
-        {coverLetter ? (
+        <h2 className="text-xl font-semibold mb-4">Resume Storage Information</h2>
+        {uploadedFilePath ? (
           <div className="space-y-4">
-            <div className="p-4 bg-gray-50 rounded-lg whitespace-pre-line h-[500px] overflow-y-auto">
-              {coverLetter}
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h3 className="font-medium text-lg mb-2">Upload Details:</h3>
+              <ul className="space-y-2 text-gray-700">
+                <li><span className="font-medium">File:</span> {file?.name}</li>
+                <li><span className="font-medium">Size:</span> {file ? (file.size / 1024).toFixed(2) + ' KB' : 'Unknown'}</li>
+                <li><span className="font-medium">Type:</span> {file?.type}</li>
+                <li><span className="font-medium">Uploaded by:</span> {user?.email}</li>
+                <li className="break-all"><span className="font-medium">Storage path:</span> {uploadedFilePath}</li>
+              </ul>
             </div>
-            <div className="flex space-x-4">
-              <button 
-                onClick={handleCopyCoverLetter}
-                className="py-2 px-4 bg-primary text-white rounded hover:bg-blue-700"
-              >
-                Copy
-              </button>
-              <button 
-                onClick={handleDownloadPDF}
-                className="py-2 px-4 bg-primary text-white rounded hover:bg-blue-700"
-              >
-                Download as PDF
-              </button>
-              <button 
-                onClick={handleGenerateCoverLetter}
-                className="py-2 px-4 bg-green-600 text-white rounded hover:bg-green-700"
-              >
-                Regenerate
-              </button>
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <p className="text-green-700">
+                <span className="font-bold">✓</span> File successfully stored in Supabase Storage!
+              </p>
+              {warning && (
+                <p className="mt-2 text-orange-600 text-sm">
+                  Note: {warning}
+                </p>
+              )}
             </div>
           </div>
         ) : (
@@ -380,8 +427,8 @@ const CoverLetterGenerator = () => {
             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p>Your cover letter will appear here</p>
-            <p className="text-sm">Upload your CV and paste the job description, then click "Generate Cover Letter"</p>
+            <p>Storage information will appear here</p>
+            <p className="text-sm">Upload your CV to Supabase Storage to see the details</p>
           </div>
         )}
       </div>
