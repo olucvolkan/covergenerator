@@ -1,0 +1,1 @@
+# CoverGen - AI Cover Letter Generator

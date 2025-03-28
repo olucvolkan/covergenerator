@@ -1,0 +1,1 @@
+// Viewer for generated cover letter
