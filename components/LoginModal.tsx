@@ -63,15 +63,21 @@ const LoginModal = ({ onClose, onSuccess }: LoginModalProps) => {
         
         console.log('Registration successful:', data);
         
-        // Rather than immediately closing modal, sign in the user
-        await signIn(email, password);
-
-        // Trigger login success callback
-        if (onSuccess) {
+        if (data.session) {
+          // User is already confirmed and has a session
+          setSuccess('Registration successful! Logging you in...');
+          if (onSuccess) {
+            setTimeout(() => {
+              onSuccess();
+              onClose();
+            }, 1500);
+          }
+        } else {
+          // User needs to confirm their email
+          setSuccess('Registration successful! Please check your email to confirm your account.');
           setTimeout(() => {
-            onSuccess();
             onClose();
-          }, 1500);
+          }, 3000);
         }
       }
     } catch (err: any) {

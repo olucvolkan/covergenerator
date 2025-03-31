@@ -17,9 +17,12 @@ const CoverLetterGenerator = () => {
   const [warning, setWarning] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
+  const [uploadedFileId, setUploadedFileId] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{success: boolean, message: string, warning?: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [coverLetter, setCoverLetter] = useState<string | null>(null);
 
   // Check Supabase connection and user session on component mount
   useEffect(() => {
@@ -150,6 +153,7 @@ const CoverLetterGenerator = () => {
       console.log("File uploaded to Supabase:", result);
       
       setUploadedFilePath(result.path);
+      setUploadedFileId(result.id);
       setUploadSuccess(true);
       
       // Show RLS warning if present
@@ -214,6 +218,45 @@ const CoverLetterGenerator = () => {
     setError(null);
   };
 
+  const handleGenerateCoverLetter = async () => {
+    if (!uploadedFileId || !jobDescription || !user) {
+      setError('Please upload your CV and enter a job description');
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      // Call our API endpoint with JSON body
+      const response = await fetch('/api/generate-cover-letter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          job_description: jobDescription,
+          user_id: user.id,
+          file_id: uploadedFileId
+        }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate cover letter');
+      }
+
+      const data = await response.json();
+      setCoverLetter(data.cover_letter);
+    } catch (err) {
+      console.error('Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate cover letter');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleUploadToSupabase = async () => {
     if (!file) {
       setError('Please upload your CV');
@@ -269,6 +312,7 @@ const CoverLetterGenerator = () => {
       console.log("File uploaded to Supabase:", result);
       
       setUploadedFilePath(result.path);
+      setUploadedFileId(result.id);
       setUploadSuccess(true);
       
       // Show RLS warning if present
@@ -395,13 +439,13 @@ const CoverLetterGenerator = () => {
                   <p className="text-gray-600">Click to upload or drag and drop</p>
                   <p className="text-xs text-gray-500">PDF (max. 5MB)</p>
                 </div>
-                <input 
+                <input
                   ref={fileInputRef}
                   id="cv-upload" 
-                  type="file" 
+                  type="file"
                   accept=".pdf,application/pdf" 
                   className="hidden" 
-                  onChange={handleFileChange} 
+                  onChange={handleFileChange}
                 />
               </>
             )}
@@ -474,65 +518,85 @@ const CoverLetterGenerator = () => {
         )}
 
         <button
-          onClick={handleUploadToSupabase}
-          disabled={isUploading || !file || !user}
+          onClick={handleGenerateCoverLetter}
+          disabled={isGenerating || !uploadedFilePath || !jobDescription || !user}
           className={`w-full py-3 px-4 rounded-lg font-medium text-white ${
-            isUploading || !file || !user
+            isGenerating || !uploadedFilePath || !jobDescription || !user
               ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-primary hover:bg-blue-700'
           }`}
         >
-          {isUploading ? (
+          {isGenerating ? (
             <span className="flex items-center justify-center">
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Uploading...
+              Generating Cover Letter...
             </span>
           ) : !user ? (
             'Login Required'
-          ) : uploadSuccess ? (
-            'File Uploaded Successfully'
+          ) : !uploadedFilePath ? (
+            'Upload CV First'
+          ) : !jobDescription ? (
+            'Enter Job Description'
           ) : (
-            'Upload to Supabase'
+            'Generate Cover Letter'
           )}
         </button>
       </div>
 
-      {/* Right Column - Resume Information */}
-      <div className="p-6 bg-white rounded-lg shadow-md h-full">
-        <h2 className="text-xl font-semibold mb-4">Resume Storage Information</h2>
-        {uploadedFilePath ? (
-          <div className="space-y-4">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-medium text-lg mb-2">Upload Details:</h3>
-              <ul className="space-y-2 text-gray-700">
-                <li><span className="font-medium">File:</span> {file?.name}</li>
-                <li><span className="font-medium">Size:</span> {file ? (file.size / 1024).toFixed(2) + ' KB' : 'Unknown'}</li>
-                <li><span className="font-medium">Type:</span> {file?.type}</li>
-                <li><span className="font-medium">Uploaded by:</span> {user?.email}</li>
-                <li className="break-all"><span className="font-medium">Storage path:</span> {uploadedFilePath}</li>
-              </ul>
-            </div>
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <p className="text-green-700">
-                <span className="font-bold">✓</span> File successfully stored in Supabase Storage!
-              </p>
-              {warning && (
-                <p className="mt-2 text-orange-600 text-sm">
-                  Note: {warning}
+      {/* Right Column - Resume Information and Cover Letter */}
+      <div className="space-y-6">
+        <div className="p-6 bg-white rounded-lg shadow-md">
+          <h2 className="text-xl font-semibold mb-4">Resume Storage Information</h2>
+          {uploadedFilePath ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h3 className="font-medium text-lg mb-2">Upload Details:</h3>
+                <ul className="space-y-2 text-gray-700">
+                  <li><span className="font-medium">File:</span> {file?.name}</li>
+                  <li><span className="font-medium">Size:</span> {file ? (file.size / 1024).toFixed(2) + ' KB' : 'Unknown'}</li>
+                  <li><span className="font-medium">Type:</span> {file?.type}</li>
+                  <li><span className="font-medium">Uploaded by:</span> {user?.email}</li>
+                  <li className="break-all"><span className="font-medium">Storage path:</span> {uploadedFilePath}</li>
+                </ul>
+              </div>
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <p className="text-green-700">
+                  <span className="font-bold">✓</span> File successfully stored in Supabase Storage!
                 </p>
-              )}
+                {warning && (
+                  <p className="mt-2 text-orange-600 text-sm">
+                    Note: {warning}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-[500px] text-center text-gray-500">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <p>Storage information will appear here</p>
-            <p className="text-sm">Upload your CV to Supabase Storage to see the details</p>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-[200px] text-center text-gray-500">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p>Storage information will appear here</p>
+              <p className="text-sm">Upload your CV to Supabase Storage to see the details</p>
+            </div>
+          )}
+        </div>
+
+        {/* Cover Letter Display */}
+        {coverLetter && (
+          <div className="p-6 bg-white rounded-lg shadow-md">
+            <h2 className="text-xl font-semibold mb-4">Generated Cover Letter</h2>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <pre className="whitespace-pre-wrap font-sans text-gray-700">{coverLetter}</pre>
+            </div>
+            <button
+              onClick={() => navigator.clipboard.writeText(coverLetter)}
+              className="mt-4 py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              Copy to Clipboard
+            </button>
           </div>
         )}
       </div>

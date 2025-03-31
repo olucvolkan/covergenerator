@@ -96,20 +96,97 @@ export async function testSupabaseConnection() {
   }
 }
 
+// Validation functions
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const validatePassword = (password: string): boolean => {
+  return password.length >= 6;
+};
+
+// Create profile function
+const createProfile = async (userId: string, email: string) => {
+  try {
+    // Check if profile already exists
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+    
+    if (existingProfile) {
+      console.log("Profile already exists for user:", userId);
+      return;
+    }
+    
+    // Create profile record
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: userId,
+        email: email,
+        has_paid: false,
+        generated_cover_letters: 0
+      });
+    
+    if (profileError) {
+      console.error("Error creating profile:", profileError);
+      throw profileError;
+    }
+    
+    console.log("Profile created successfully for user:", userId);
+  } catch (error) {
+    console.error("Error in createProfile:", error);
+    // We don't want to fail the registration if profile creation fails
+    // The user can still use the app, but some features might not work
+  }
+};
+
 // User authentication functions
 export async function signUp(email: string, password: string, fullName: string) {
   try {
-    // Register the user with Supabase
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        }
-      }
-    });
+    // Basic validation
+    if (!email || !password) {
+      throw new Error("Email and password are required.");
+    }
+
+    // Email format validation
+    if (!validateEmail(email)) {
+      throw new Error("Please enter a valid email address.");
+    }
+
+    // Password strength validation
+    if (!validatePassword(password)) {
+      throw new Error("Password must be at least 6 characters long.");
+    }
     
+    // First check if user already exists in auth system
+    const { data: existingUsers } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('email', email)
+      .maybeSingle();
+    
+    if (existingUsers) {
+      throw new Error("This email is already registered. Please use a different email or sign in.");
+    }
+    
+    // Register the user with Supabase
+      // If the email doesn't exist in profiles, proceed with signup
+      const { error, data } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: {
+            email: email,
+            first_name: email,
+            last_name: ''
+          }
+        }
+      });
+      
     if (error) {
       console.error('Error during sign up:', error);
       return { data: null, error };
@@ -117,26 +194,17 @@ export async function signUp(email: string, password: string, fullName: string) 
     
     console.log('Sign up successful, created user:', data.user?.id);
     
-    // Create a record in the users table if desired
+    // Create profile for the new user
     if (data.user) {
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert([
-          {
-            id: data.user.id,
-            email: data.user.email,
-            full_name: fullName,
-            created_at: new Date().toISOString(),
-          }
-        ]);
-      
-      if (profileError) {
-        console.error('Error creating user profile:', profileError);
-        // Don't fail the signup process if profile creation fails
-      }
+      await createProfile(data.user.id, email);
     }
     
-    // Now automatically sign them in for a seamless experience
+    // If email confirmation is disabled, this will already be a confirmed user
+    // with an active session
+    if (data.session) {
+      console.log("Email confirmation appears to be disabled, session already available");
+    }
+    
     return { data, error: null };
   } catch (err) {
     console.error('Exception during sign up:', err);
