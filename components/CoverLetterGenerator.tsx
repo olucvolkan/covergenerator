@@ -2,31 +2,17 @@
 
 import { getCurrentUser, testSupabaseConnection } from '@/lib/auth';
 import { uploadPDF } from '@/lib/pdfParser';
+import { checkUserPremiumAccess } from '@/lib/stripe';
 import React, { useEffect, useRef, useState } from 'react';
-
-// Geçici bir LoginModal bileşeni oluşturalım (linter hatası için)
-const LoginModal = ({ onClose }: { onClose: () => void }) => {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-md shadow-xl p-6">
-        <h2 className="text-2xl font-bold mb-4">Login / Register</h2>
-        <p className="mb-4">Please implement a proper login modal or use the Supabase Auth UI.</p>
-        <button 
-          onClick={onClose}
-          className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-blue-700"
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  );
-};
+import LoginModal from './LoginModal';
+import PlanSelector from './PlanSelector';
 
 const CoverLetterGenerator = () => {
   const [file, setFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showPlanSelector, setShowPlanSelector] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
@@ -109,6 +95,9 @@ const CoverLetterGenerator = () => {
         // If user is logged in, upload the file to Supabase
         if (user) {
           await handleFileUpload(selectedFile);
+        } else {
+          setShowLoginModal(true);
+          setError("Authentication required: You must be logged in to upload files to Supabase Storage.");
         }
       } else {
         // Reset file input
@@ -124,9 +113,32 @@ const CoverLetterGenerator = () => {
   const handleFileUpload = async (fileToUpload: File) => {
     if (!user) {
       setShowLoginModal(true);
+      setError("Authentication required: You must be logged in to upload files to Supabase Storage.");
       return;
     }
     
+    // Check if user has premium access
+    try {
+      const hasPremiumAccess = await checkUserPremiumAccess(user.id);
+      
+      if (!hasPremiumAccess) {
+        console.log("User does not have premium access. Showing plan selector.");
+        // Direct the user to the plan selector
+        setShowPlanSelector(true);
+        setFile(fileToUpload); // Save the file for later upload after plan selection
+        return;
+      }
+      
+      console.log("User has premium access. Proceeding with upload.");
+    } catch (err) {
+      console.error("Error checking premium access:", err);
+      // If there's an error checking access, continue as if they don't have access
+      setShowPlanSelector(true);
+      setFile(fileToUpload);
+      return;
+    }
+    
+    // If we reach here, the user has premium access and can upload
     setIsUploading(true);
     setError(null);
     setWarning(null);
@@ -140,7 +152,7 @@ const CoverLetterGenerator = () => {
       setUploadedFilePath(result.path);
       setUploadSuccess(true);
       
-      // RLS uyarısını göster
+      // Show RLS warning if present
       if (result.warning) {
         setWarning(result.warning);
       }
@@ -150,6 +162,9 @@ const CoverLetterGenerator = () => {
       // Provide a more detailed error message if it's a bucket issue
       if (err.message && err.message.includes('bucket')) {
         setError(err.message);
+      } else if (err.message && err.message.includes('logged in')) {
+        setError(err.message);
+        setShowLoginModal(true);
       } else {
         setError(`Error uploading file: ${err.message || 'Unknown error'}`);
       }
@@ -181,6 +196,9 @@ const CoverLetterGenerator = () => {
         // If user is logged in, upload the file to Supabase
         if (user) {
           await handleFileUpload(droppedFile);
+        } else {
+          setShowLoginModal(true);
+          setError("Authentication required: You must be logged in to upload files to Supabase Storage.");
         }
       }
     }
@@ -204,26 +222,80 @@ const CoverLetterGenerator = () => {
 
     if (!user) {
       setShowLoginModal(true);
+      setError("Authentication required: You must be logged in to upload files to Supabase Storage.");
       return;
     }
 
     await handleFileUpload(file);
   };
 
-  const handleCloseLoginModal = async () => {
+  const handleLoginSuccess = async () => {
+    // Get current user after successful login
+    const currentUser = await getCurrentUser();
+    setUser(currentUser);
     setShowLoginModal(false);
     
-    // Check if the user has logged in during the modal session
-    const currentUser = await getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-      
-      // If there's a file selected but not uploaded, upload it now
-      if (file && !uploadedFilePath) {
-        await handleFileUpload(file);
-      }
+    // If there's a file pending upload, try uploading it now that the user is logged in
+    if (file) {
+      await handleFileUpload(file);
     }
   };
+
+  const handleCloseLoginModal = () => {
+    setShowLoginModal(false);
+  };
+
+  const handleSelectFreePlan = () => {
+    // Handle free plan selection - redirect back to main app
+    setShowPlanSelector(false);
+    
+    // If there's a file selected but not uploaded, upload it now
+    if (file && !uploadedFilePath && user) {
+      // Continue with the actual upload now
+      handleFileUploadAfterPlanSelection(file);
+    }
+  };
+  
+  // New function to handle upload after plan selection
+  const handleFileUploadAfterPlanSelection = async (fileToUpload: File) => {
+    setIsUploading(true);
+    setError(null);
+    setWarning(null);
+    setUploadSuccess(false);
+    
+    try {
+      // Upload PDF to Supabase Storage
+      const result = await uploadPDF(fileToUpload, user.id);
+      console.log("File uploaded to Supabase:", result);
+      
+      setUploadedFilePath(result.path);
+      setUploadSuccess(true);
+      
+      // Show RLS warning if present
+      if (result.warning) {
+        setWarning(result.warning);
+      }
+    } catch (err: any) {
+      console.error("Error uploading file to Supabase:", err);
+      
+      // Provide a more detailed error message if it's a bucket issue
+      if (err.message && err.message.includes('bucket')) {
+        setError(err.message);
+      } else if (err.message && err.message.includes('logged in')) {
+        setError(err.message);
+        setShowLoginModal(true);
+      } else {
+        setError(`Error uploading file: ${err.message || 'Unknown error'}`);
+      }
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // If showing plan selector, render that instead of main app
+  if (showPlanSelector) {
+    return <PlanSelector onSelectFreePlan={handleSelectFreePlan} userId={user?.id} />;
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -255,6 +327,27 @@ const CoverLetterGenerator = () => {
           )}
         </div>
       )}
+
+      {/* User Auth Status */}
+      <div className={`col-span-full mb-4 p-4 rounded-lg ${
+        user ? 'bg-green-50 text-green-700 border border-green-200' : 
+        'bg-orange-50 text-orange-700 border border-orange-200'
+      }`}>
+        {user ? (
+          <p className="font-medium">✓ Logged in as: {user.email}</p>
+        ) : (
+          <div>
+            <p className="font-medium">⚠️ Not logged in</p>
+            <p className="text-sm mt-1">You must be logged in to upload files to Supabase Storage due to security policies.</p>
+            <button 
+              onClick={() => setShowLoginModal(true)}
+              className="mt-2 bg-primary text-white py-1 px-3 rounded-md text-sm hover:bg-blue-700"
+            >
+              Log in
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Left Column - CV Upload and Job Description */}
       <div className="space-y-6">
@@ -342,6 +435,15 @@ const CoverLetterGenerator = () => {
                 </ol>
               </div>
             )}
+            {error.includes('logged in') && (
+              <div className="mt-2 text-sm">
+                <p className="font-medium">To fix this:</p>
+                <ol className="list-decimal pl-5 mt-1 space-y-1">
+                  <li>Please log in using the button above</li>
+                  <li>Check your Supabase storage bucket policies to ensure authenticated users can upload</li>
+                </ol>
+              </div>
+            )}
           </div>
         )}
 
@@ -373,9 +475,9 @@ const CoverLetterGenerator = () => {
 
         <button
           onClick={handleUploadToSupabase}
-          disabled={isUploading || !file}
+          disabled={isUploading || !file || !user}
           className={`w-full py-3 px-4 rounded-lg font-medium text-white ${
-            isUploading || !file
+            isUploading || !file || !user
               ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-primary hover:bg-blue-700'
           }`}
@@ -388,6 +490,8 @@ const CoverLetterGenerator = () => {
               </svg>
               Uploading...
             </span>
+          ) : !user ? (
+            'Login Required'
           ) : uploadSuccess ? (
             'File Uploaded Successfully'
           ) : (
@@ -435,7 +539,10 @@ const CoverLetterGenerator = () => {
 
       {/* Login Modal */}
       {showLoginModal && (
-        <LoginModal onClose={handleCloseLoginModal} />
+        <LoginModal 
+          onClose={handleCloseLoginModal} 
+          onSuccess={handleLoginSuccess}
+        />
       )}
     </div>
   );

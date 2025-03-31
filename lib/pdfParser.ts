@@ -11,6 +11,12 @@ export async function uploadPDF(file: File, userId: string): Promise<UploadResul
   try {
     console.log("Starting file upload to Supabase Storage");
 
+    // Check if user is authenticated
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData?.session) {
+      throw new Error("You must be logged in to upload files. User authentication is required by storage policies.");
+    }
+
     // Check if the bucket exists by trying to list files
     try {
       await supabase.storage.from('resumes').list();
@@ -38,6 +44,14 @@ export async function uploadPDF(file: File, userId: string): Promise<UploadResul
 
     if (uploadError) {
       console.error("Error uploading to Supabase Storage:", uploadError);
+      
+      // Check for auth-related errors
+      if (uploadError.message.includes('auth') || 
+          uploadError.message.includes('permission') || 
+          uploadError.message.includes('not allowed')) {
+        throw new Error(`Authentication error: ${uploadError.message}. Make sure the bucket has a policy allowing authenticated users to upload.`);
+      }
+      
       throw new Error(`Error uploading file: ${uploadError.message}`);
     }
 
