@@ -1,13 +1,14 @@
 'use client'
 
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 export default function SuccessPage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
 
   useEffect(() => {
@@ -22,22 +23,32 @@ export default function SuccessPage() {
           return
         }
 
-        // Verify the session with Stripe directly
-        const response = await fetch('/api/verify-session', {
+        // Get credits from URL params
+        const credits = searchParams.get('credits')
+        if (!credits) {
+          setStatus('error')
+          setMessage('No credits information found')
+          return
+        }
+
+        // Add credits to user's account
+        const response = await fetch('/api/add-credits', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`
-          }
+          },
+          body: JSON.stringify({ credits: parseInt(credits, 10) })
         })
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to verify session')
+          throw new Error(errorData.error || 'Failed to add credits')
         }
 
+        const data = await response.json()
         setStatus('success')
-        setMessage('Payment successful! Your subscription is now active.')
+        setMessage(`Payment successful! ${credits} credits have been added to your account.`)
 
         // Redirect to home page after 3 seconds
         setTimeout(() => {
@@ -52,7 +63,7 @@ export default function SuccessPage() {
     }
 
     checkSession()
-  }, [router])
+  }, [router, searchParams])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

@@ -1,4 +1,4 @@
-// supabase/functions/stripe-webhook/index.ts
+// supabase/functions/credits-webhook/index.ts
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -65,7 +65,6 @@ serve(async (req) => {
         const customerId = session.customer as string
         
         if (!clientReferenceId) {
-          await logWebhookEvent(event.type, event.id, session, false, 'No user ID found in session');
           throw new Error('No user ID found in session')
         }
         
@@ -144,13 +143,13 @@ serve(async (req) => {
           .eq('id', clientReferenceId)
 
         if (error) {
-          await logWebhookEvent(event.type, event.id, session, false, error.message);
+          await logWebhookEvent(event.type, event.id, event.data.object, false, error.message);
           console.error('Error updating profile with credits:', error)
           throw error
         }
         
         // Log successful processing
-        await logWebhookEvent(event.type, event.id, session, true);
+        await logWebhookEvent(event.type, event.id, event.data.object, true);
         console.log(`Successfully updated user ${clientReferenceId} to ${newCredits} credits`)
         break
       }
