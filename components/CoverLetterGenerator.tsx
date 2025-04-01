@@ -257,20 +257,6 @@ const CoverLetterGenerator = () => {
     }
   };
 
-  const handleUploadToSupabase = async () => {
-    if (!file) {
-      setError('Please upload your CV');
-      return;
-    }
-
-    if (!user) {
-      setShowLoginModal(true);
-      setError("Authentication required: You must be logged in to upload files to Supabase Storage.");
-      return;
-    }
-
-    await handleFileUpload(file);
-  };
 
   const handleLoginSuccess = async () => {
     // Get current user after successful login

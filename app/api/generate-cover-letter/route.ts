@@ -15,7 +15,6 @@ export async function POST(request: Request) {
     formData.append('job_description', job_description)
     formData.append('file_id', file_id)
 
-    // Call the external API with FormData
     const apiResponse = await fetch('https://covergen-api.fly.dev/generate-smart', {
       method: 'POST',
       body: formData
@@ -30,7 +29,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const data = await apiResponse.json()
+      const data = await apiResponse.json()
     return NextResponse.json(data)
 
   } catch (error) {
