@@ -1,39 +1,34 @@
 'use client'
 
-import { createBrowserClient } from '@supabase/ssr'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 export default function SuccessPage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
-  const params = useSearchParams()
   const router = useRouter()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
-    if (!params) return
-
-    const sessionId = params.get('session_id')
-    
-    if (!sessionId) {
-      setStatus('error')
-      setMessage('No session ID found')
-      return
-    }
-
     const checkSession = async () => {
       try {
+        // Get current session
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (!session) {
+          setStatus('error')
+          setMessage('No active session found. Please log in.')
+          return
+        }
+
         // Verify the session with Stripe directly
         const response = await fetch('/api/verify-session', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ sessionId }),
+            'Authorization': `Bearer ${session.access_token}`
+          }
         })
 
         if (!response.ok) {
@@ -57,7 +52,7 @@ export default function SuccessPage() {
     }
 
     checkSession()
-  }, [params, router])
+  }, [router])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

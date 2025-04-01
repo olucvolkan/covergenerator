@@ -5,9 +5,11 @@ import React, { useState } from 'react';
 
 interface PlanSelectorProps {
   onSelectFreePlan: () => void;
+  user: any;
+  setShowLoginModal: (show: boolean) => void;
 }
 
-const PlanSelector: React.FC<PlanSelectorProps> = ({ onSelectFreePlan }) => {
+const PlanSelector: React.FC<PlanSelectorProps> = ({ onSelectFreePlan, user, setShowLoginModal }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,6 +21,11 @@ const PlanSelector: React.FC<PlanSelectorProps> = ({ onSelectFreePlan }) => {
       return;
     }
     
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
     setIsLoading(true);
     
     try {

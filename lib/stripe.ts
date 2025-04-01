@@ -1,5 +1,6 @@
 import { loadStripe } from '@stripe/stripe-js';
-import { supabase } from './supabaseClient';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { User } from '@supabase/supabase-js';
 
 export type Plan = 'free' | 'premium';
 
@@ -65,53 +66,47 @@ export const createCheckoutSession = async (planId: Plan) => {
     }
 
     const plan = PLANS[planId];
+    const supabase = createClientComponentClient();
     
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError) {
-      throw new Error('User authentication required');
-    }
-
-    if (!user) {
-      throw new Error('Please log in to subscribe');
+    // Get current user and session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No active session found');
     }
 
     console.log('Creating checkout session for plan:', planId);
     console.log('Using price ID:', plan.stripe_price_id);
-    console.log('User ID:', user.id);
 
-    // Call Supabase Edge Function to create checkout session
-    const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-      body: {
-        price_id: plan.stripe_price_id,
-        user_id: user.id,
-        success_url: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${window.location.origin}/`,
+    // Call Edge Function
+    const response = await fetch('https://fniqovomddsjdsodaxbh.supabase.co/functions/v1/create-checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
       }
     });
 
-    if (error) {
-      throw error;
+    const responseText = await response.text();
+    console.log('Response text:', responseText);
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse response:', e);
+      throw new Error(`Invalid response from server: ${responseText}`);
     }
 
-    if (!data || !data.sessionId) {
-      throw new Error('Failed to create checkout session');
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to create checkout session');
+    }
+
+    if (!responseData.url) {
+      throw new Error('No checkout URL returned');
     }
 
     // Redirect to Stripe Checkout
-    const stripe = await getStripe();
-    if (!stripe) {
-      throw new Error('Failed to initialize Stripe');
-    }
-
-    const { error: redirectError } = await stripe.redirectToCheckout({
-      sessionId: data.sessionId
-    });
-
-    if (redirectError) {
-      throw redirectError;
-    }
+    window.location.href = responseData.url;
 
   } catch (error: any) {
     console.error('Failed to create checkout session:', error);
@@ -120,17 +115,18 @@ export const createCheckoutSession = async (planId: Plan) => {
 };
 
 // Check if a user has a premium plan using profiles table
-export const checkUserPremiumAccess = async (userId: string) => {
+export const checkUserPremiumAccess = async (user: User) => {
   try {
-    if (!userId) {
+    if (!user) {
       throw new Error('User ID is required to check premium access');
     }
     
+    const supabase = createClientComponentClient();
     // Check has_paid status in profiles table
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('has_paid, generated_cover_letters')
-      .eq('id', userId)
+      .eq('id', user.id)
       .single();
     
     if (error) {
@@ -150,6 +146,7 @@ export const checkUserPremiumAccess = async (userId: string) => {
 // Update user's premium status after successful payment
 export const updateUserPremiumStatus = async (userId: string, stripeCustomerId: string) => {
   try {
+    const supabase = createClientComponentClient();
     const { error } = await supabase
       .from('profiles')
       .update({ 

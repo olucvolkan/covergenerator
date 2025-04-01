@@ -49,7 +49,7 @@ const CoverLetterGenerator = () => {
         
         // Get current user
         const currentUser = await getCurrentUser();
-        setUser(currentUser);
+        setUser(currentUser.data);
       } catch (err: any) {
         console.error('Error initializing app:', err);
         setConnectionStatus({
@@ -122,7 +122,7 @@ const CoverLetterGenerator = () => {
     
     // Check if user has premium access
     try {
-      const hasPremiumAccess = await checkUserPremiumAccess(user.id);
+      const hasPremiumAccess = await checkUserPremiumAccess(user.user);
       
       if (!hasPremiumAccess) {
         console.log("User does not have premium access. Showing plan selector.");
@@ -149,7 +149,7 @@ const CoverLetterGenerator = () => {
     
     try {
       // Upload PDF to Supabase Storage
-      const result = await uploadPDF(fileToUpload, user.id);
+      const result = await uploadPDF(fileToUpload, user.user.id);
       console.log("File uploaded to Supabase:", result);
       
       setUploadedFilePath(result.path);
@@ -236,7 +236,7 @@ const CoverLetterGenerator = () => {
         },
         body: JSON.stringify({
           job_description: jobDescription,
-          user_id: user.id,
+          user_id: user.user.id,
           file_id: uploadedFileId
         }),
         credentials: 'include'
@@ -338,7 +338,11 @@ const CoverLetterGenerator = () => {
 
   // If showing plan selector, render that instead of main app
   if (showPlanSelector) {
-    return <PlanSelector onSelectFreePlan={handleSelectFreePlan} userId={user?.id} />;
+    return <PlanSelector 
+      onSelectFreePlan={handleSelectFreePlan} 
+      user={user} 
+      setShowLoginModal={setShowLoginModal}
+    />;
   }
 
   return (
