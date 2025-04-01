@@ -1,6 +1,9 @@
 "use client";
 
-import { signIn, signUp } from '@/lib/auth';
+import { signInWithGoogle } from '@/lib/auth';
+import CloseIcon from '@mui/icons-material/Close';
+import GoogleIcon from '@mui/icons-material/Google';
+import { IconButton, Typography } from '@mui/material';
 import { useState } from 'react';
 
 interface LoginModalProps {
@@ -9,231 +12,108 @@ interface LoginModalProps {
 }
 
 const LoginModal = ({ onClose, onSuccess }: LoginModalProps) => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
+  const handleGoogleSignIn = async () => {
     setIsLoading(true);
-
+    setError(null);
+    
     try {
-      if (isLogin) {
-        // Login flow
-        const { data, error } = await signIn(email, password);
-        if (error) {
-          throw new Error(error.message);
-        }
-        setSuccess('Login successful!');
-        if (onSuccess) {
-          setTimeout(() => {
-            onSuccess();
-            onClose();
-          }, 1000);
-        }
-      } else {
-        // Registration flow
-        if (!fullName) {
-          throw new Error('Please enter your full name');
-        }
-        
-        // Validate password
-        if (password.length < 6) {
-          throw new Error('Password must be at least 6 characters long');
-        }
-        
-        // Check that passwords match
-        if (password !== confirmPassword) {
-          throw new Error('Passwords do not match');
-        }
-        
-        // Register user with Supabase
-        const { data, error } = await signUp(email, password, fullName);
-        
-        if (error) {
-          throw error;
-        }
-        
-        console.log('Registration successful:', data);
-        
-        if (data.session) {
-          // User is already confirmed and has a session
-          setSuccess('Registration successful! Logging you in...');
-          if (onSuccess) {
-            setTimeout(() => {
-              onSuccess();
-              onClose();
-            }, 1500);
-          }
-        } else {
-          // User needs to confirm their email
-          setSuccess('Registration successful! Please check your email to confirm your account.');
-          setTimeout(() => {
-            onClose();
-          }, 3000);
-        }
+      const { error } = await signInWithGoogle();
+      if (error) {
+        throw error;
       }
+      if (onSuccess) {
+        onSuccess();
+      }
+      onClose();
     } catch (err: any) {
-      setError(err.message || 'An error occurred');
+      setError(err.message || 'An error occurred during sign in');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const toggleMode = () => {
-    setIsLogin(!isLogin);
-    setError(null);
-    setSuccess(null);
-  };
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-md shadow-xl p-6">
-        <h2 className="text-2xl font-bold mb-4">
-          {isLogin ? 'Login' : 'Register'}
-        </h2>
-        
-        <p className="mb-4 text-gray-600">
-          {isLogin 
-            ? 'Authentication is required to upload files to Supabase Storage due to security policies.'
-            : 'Create an account to get started with cover letter generation.'}
-        </p>
-        
-        {!isLogin && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded">
-            <h3 className="font-medium mb-1">Choose between plans after registration:</h3>
-            <ul className="list-disc pl-5 space-y-1 text-sm">
-              <li><span className="font-medium">Free Plan:</span> 5 cover letter generations</li>
-              <li><span className="font-medium">Premium Plan:</span> Unlimited cover letters for only €3/month</li>
-            </ul>
-          </div>
-        )}
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6 relative">
+        <IconButton
+          onClick={onClose}
+          className="absolute right-4 top-4"
+          sx={{
+            color: 'text.secondary',
+            '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
+
+        <div className="flex flex-col items-center mb-6">
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 700,
+              background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 1
+            }}
+          >
+            Welcome to CoverGen
+          </Typography>
+          <Typography variant="body2" color="text.secondary" textAlign="center">
+            Sign in with your Google account to start creating personalized cover letters
+          </Typography>
+        </div>
         
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded">
+          <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm">
             {error}
           </div>
         )}
         
-        {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded">
-            {success}
+        <div className="space-y-4">
+          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <h3 className="text-blue-800 font-medium text-sm mb-2">Available Plans:</h3>
+            <ul className="space-y-2">
+              <li className="flex items-center text-sm text-blue-700">
+                <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                <span className="font-medium">Free Plan:</span>
+                <span className="ml-1">5 cover letter generations</span>
+              </li>
+              <li className="flex items-center text-sm text-blue-700">
+                <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                <span className="font-medium">Premium Plan:</span>
+                <span className="ml-1">Unlimited cover letters for €3/month</span>
+              </li>
+            </ul>
           </div>
-        )}
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name
-              </label>
-              <input
-                id="fullName"
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-primary focus:border-primary"
-                placeholder="Enter your full name"
-                disabled={isLoading}
-              />
-            </div>
-          )}
-          
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-primary focus:border-primary"
-              placeholder="Enter your email"
-              disabled={isLoading}
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-primary focus:border-primary"
-              placeholder="Enter your password"
-              disabled={isLoading}
-              required
-            />
-          </div>
-          
-          {!isLogin && (
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-primary focus:border-primary"
-                placeholder="Enter your password again"
-                disabled={isLoading}
-                required
-              />
-            </div>
-          )}
-          
-          {!isLogin && (
-            <div className="text-xs text-gray-500 mt-2">
-              By registering, you agree to our Terms of Service and Privacy Policy.
-            </div>
-          )}
-          
+
           <button
-            type="submit"
+            onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+            className="w-full bg-white text-gray-700 py-2.5 px-4 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 transition-all duration-200 flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <span className="flex items-center justify-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {isLogin ? 'Logging in...' : 'Registering...'}
+                Signing in...
               </span>
             ) : (
-              isLogin ? 'Login' : 'Register & Continue'
+              <>
+                <GoogleIcon />
+                Sign in with Google
+              </>
             )}
-          </button>
-        </form>
-        
-        <div className="mt-4 text-center">
-          <button onClick={toggleMode} className="text-primary hover:underline">
-            {isLogin ? 'Need an account? Register' : 'Already have an account? Login'}
           </button>
         </div>
         
-        <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end">
-          <button 
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            Close
-          </button>
+        <div className="mt-4 text-xs text-gray-500 text-center">
+          By signing in, you agree to our Terms of Service and Privacy Policy.
         </div>
       </div>
     </div>

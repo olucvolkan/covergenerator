@@ -1,14 +1,14 @@
-import { supabase } from '@/lib/supabaseClient';
+import { Database } from '@/types/supabase';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+
+export const supabase = createClientComponentClient<Database>();
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 console.log("Initializing Supabase client with URL:", supabaseUrl);
-// İkinci bir client oluşturmuyoruz - shared client kullanıyoruz
-// export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
-// Test the connection
 export async function testSupabaseConnection() {
   try {
     console.log('Testing Supabase connection...');
@@ -107,192 +107,116 @@ const validatePassword = (password: string): boolean => {
 };
 
 // Create profile function
-const createProfile = async (userId: string, email: string) => {
+const createProfile = async (userId: string, email: string, fullName: string) => {
+  if (!userId || !email) {
+    throw new Error('User ID and email are required for profile creation');
+  }
+
   try {
     // Check if profile already exists
-    const { data: existingProfile } = await supabase
+    const { data: existingProfile, error: checkError } = await supabase
       .from('profiles')
       .select('id')
       .eq('id', userId)
       .maybeSingle();
+
+    if (checkError) {
+      throw checkError;
+    }
     
     if (existingProfile) {
       console.log("Profile already exists for user:", userId);
       return;
     }
-    
+
+    // Parse full name into first and last name
+    const nameParts = fullName.trim().split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ');
+
     // Create profile record
     const { error: profileError } = await supabase
       .from('profiles')
       .insert({
         id: userId,
         email: email,
+        first_name: firstName,
+        last_name: lastName,
+        full_name: fullName,
         has_paid: false,
-        generated_cover_letters: 0
+        generated_cover_letters: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
-    
+
     if (profileError) {
       console.error("Error creating profile:", profileError);
       throw profileError;
     }
-    
+
     console.log("Profile created successfully for user:", userId);
   } catch (error) {
     console.error("Error in createProfile:", error);
-    // We don't want to fail the registration if profile creation fails
-    // The user can still use the app, but some features might not work
+    throw error;
   }
 };
 
-// User authentication functions
-export async function signUp(email: string, password: string, fullName: string) {
+// Google Sign In
+export const signInWithGoogle = async () => {
   try {
-    // Basic validation
-    if (!email || !password) {
-      throw new Error("Email and password are required.");
-    }
-
-    // Email format validation
-    if (!validateEmail(email)) {
-      throw new Error("Please enter a valid email address.");
-    }
-
-    // Password strength validation
-    if (!validatePassword(password)) {
-      throw new Error("Password must be at least 6 characters long.");
-    }
-    
-    // First check if user already exists in auth system
-    const { data: existingUsers } = await supabase
-      .from('profiles')
-      .select('email')
-      .eq('email', email)
-      .maybeSingle();
-    
-    if (existingUsers) {
-      throw new Error("This email is already registered. Please use a different email or sign in.");
-    }
-    
-    // Register the user with Supabase
-      // If the email doesn't exist in profiles, proceed with signup
-      const { error, data } = await supabase.auth.signUp({ 
-        email, 
-        password,
-        options: {
-          data: {
-            email: email,
-            first_name: email,
-            last_name: ''
-          }
-        }
-      });
-      
-    if (error) {
-      console.error('Error during sign up:', error);
-      return { data: null, error };
-    }
-    
-    console.log('Sign up successful, created user:', data.user?.id);
-    
-    // Create profile for the new user
-    if (data.user) {
-      await createProfile(data.user.id, email);
-    }
-    
-    // If email confirmation is disabled, this will already be a confirmed user
-    // with an active session
-    if (data.session) {
-      console.log("Email confirmation appears to be disabled, session already available");
-    }
-    
-    return { data, error: null };
-  } catch (err) {
-    console.error('Exception during sign up:', err);
-    return { data: null, error: err as Error };
-  }
-}
-
-export async function signIn(email: string, password: string) {
-  try {
-    console.log('Attempting to sign in user:', email);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
-    
-    if (error) {
-      console.error('Sign in error:', error);
-      return { data: null, error };
-    }
-    
-    console.log('Sign in successful for user:', data.user.id);
+
+    if (error) throw error;
     return { data, error: null };
-  } catch (err) {
-    console.error('Exception during sign in:', err);
-    return { data: null, error: err as Error };
+  } catch (error: any) {
+    console.error('Error signing in with Google:', error);
+    return { data: null, error };
   }
-}
+};
 
-export async function signOut() {
-  const { error } = await supabase.auth.signOut();
-  return { error };
-}
-
-export async function getCurrentUser() {
+// Sign Out
+export const signOut = async () => {
   try {
-    // Check if we have a session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    return { error: null };
+  } catch (error: any) {
+    console.error('Error signing out:', error);
+    return { error };
+  }
+};
+
+// Get Current User
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (sessionError) {
-      console.error('Error getting auth session:', sessionError);
-      return null;
-    }
-    
-    if (!session) {
-      console.log('No active session found');
-      return null;
-    }
-    
-    console.log('Session found, user ID:', session.user.id);
-    
-    // Get the user with their profile data
-    const { data: user, error: userError } = await supabase.auth.getUser();
-    
-    if (userError) {
-      console.error('Error getting user data:', userError);
-      return session.user; // Return basic session user if we can't get full profile
-    }
-    
-    if (!user) {
-      console.log('User data not found, returning session user');
-      return session.user;
-    }
-    
-    console.log('Full user data retrieved:', user.user.email);
-    
-    // Check if we have additional user data in the users table
-    const { data: userProfile, error: profileError } = await supabase
+    if (userError) throw userError;
+    if (!user) return { data: null, error: null };
+
+    // Get profile data
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', user.user.id)
+      .eq('id', user.id)
       .single();
-    
-    
-    if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Error fetching user profile:', profileError);
+
+    if (profileError) {
+      console.error('Error fetching profile:', profileError);
+      return { data: null, error: profileError };
     }
 
-    console.log(userProfile);
-    // Return combined user data (auth user + profile data if available)
-    return {
-      ...user.user,
-      profile: userProfile || null
-    };
-  } catch (error) {
-    console.error('Unexpected error in getCurrentUser:', error);
-    return null;
+    return { data: { user, profile }, error: null };
+  } catch (error: any) {
+    console.error('Error getting current user:', error);
+    return { data: null, error };
   }
-}
+};
 
 export async function getSession() {
   const { data: { session } } = await supabase.auth.getSession();
