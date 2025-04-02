@@ -20,10 +20,8 @@ type ProfileData = {
 
 type CoverLetter = {
   id: string;
-  job_title: string | null;
-  company_name: string | null;
-  content: string;
-  user_id: string;
+  job_description: string | null;
+  cover_letter: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -284,7 +282,7 @@ export default function ProfilePage() {
                       <div className="flex flex-col sm:flex-row justify-between">
                         <div>
                           <h3 className="font-medium text-gray-900">
-                            {letter.job_title || "Untitled"} {letter.company_name ? `at ${letter.company_name}` : ""}
+                          {letter.job_description?.split(' ').slice(0, 10).join(' ')}
                           </h3>
                           <p className="text-sm text-gray-500 mt-1">
                             Created on {new Date(letter.created_at).toLocaleDateString()}
@@ -295,7 +293,7 @@ export default function ProfilePage() {
                             onClick={() => handleGeneratePDF(letter.id)}
                             className="text-sm bg-primary text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
                           >
-                            Download PDF
+                            Show Cover Letter
                           </button>
                         </div>
                       </div>

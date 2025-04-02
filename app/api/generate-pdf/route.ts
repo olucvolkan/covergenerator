@@ -35,14 +35,6 @@ export async function POST(request: Request) {
       }, { status: 404 });
     }
 
-    // Generate PDF using puppeteer (in a real implementation)
-    // This is a placeholder for the actual PDF generation code
-    // For this example, we'll just return a success response with a mock URL
-    
-    // In a real implementation, you would:
-    // 1. Use puppeteer to generate a PDF
-    // 2. Upload the PDF to Supabase Storage
-    // 3. Return the URL to the uploaded PDF
     
     const mockPdfUrl = `/api/view-cover-letter?id=${coverLetterId}`;
     
