@@ -85,7 +85,7 @@ export const createCheckoutSession = async (planId: PlanId, stripePriceId?: stri
 
     console.log('Creating checkout session for plan:', planId);
     console.log('Using price ID:', stripePriceId || plan.stripe_price_id);
-
+    console.log(session);
     // Call updated Edge Function endpoint
     const response = await fetch('https://fniqovomddsjdsodaxbh.supabase.co/functions/v1/credits-checkout', {
       method: 'POST',
@@ -157,7 +157,7 @@ export const checkUserCredits = async (user: User) => {
       .from('profiles')
       .select('credits, generated_cover_letters')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
     
     if (error) {
       console.error('Error checking user credits:', error);

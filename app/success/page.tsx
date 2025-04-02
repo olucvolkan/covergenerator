@@ -23,32 +23,16 @@ export default function SuccessPage() {
           return
         }
 
-        // Get credits from URL params
-        const credits = searchParams.get('credits')
-        if (!credits) {
-          setStatus('error')
-          setMessage('No credits information found')
-          return
-        }
-
-        // Add credits to user's account
-        const response = await fetch('/api/add-credits', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ credits: parseInt(credits, 10) })
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to add credits')
-        }
-
-        const data = await response.json()
+        // Success message
         setStatus('success')
-        setMessage(`Payment successful! ${credits} credits have been added to your account.`)
+        
+        // Get credits from URL params if available
+        const credits = searchParams.get('credits')
+        if (credits) {
+          setMessage(`Payment successful! ${credits} credits have been added to your account.`)
+        } else {
+          setMessage('Payment successful! Your purchase is now complete.')
+        }
 
         // Redirect to home page after 3 seconds
         setTimeout(() => {
@@ -56,7 +40,7 @@ export default function SuccessPage() {
         }, 3000)
 
       } catch (error) {
-        console.error('Error verifying session:', error)
+        console.error('Error checking session:', error)
         setStatus('error')
         setMessage(error instanceof Error ? error.message : 'An error occurred')
       }

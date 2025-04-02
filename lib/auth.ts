@@ -204,11 +204,46 @@ export const getCurrentUser = async () => {
       .from('profiles')
       .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (profileError) {
       console.error('Error fetching profile:', profileError);
       return { data: null, error: profileError };
+    }
+
+    // Create profile if it doesn't exist (for Google login users)
+    if (!profile) {
+      console.log('Profile does not exist for user:', user.id);
+      try {
+        // Get email from user object
+        const email = user.email;
+        // Get full name from metadata
+        const fullName = user.user_metadata?.full_name || 
+                        (user.user_metadata?.name) || 
+                        user.email?.split('@')[0] || 
+                        'User';
+                        
+        console.log('Creating profile for Google login user:', { userId: user.id, email, fullName });
+        
+        await createProfile(user.id, email as string, fullName);
+        
+        // Fetch the newly created profile
+        const { data: newProfile, error: newProfileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+          
+        if (newProfileError) {
+          console.error('Error fetching new profile:', newProfileError);
+          return { data: { user, profile: null }, error: newProfileError };
+        }
+        
+        return { data: { user, profile: newProfile }, error: null };
+      } catch (profileCreationError) {
+        console.error('Error creating profile for Google user:', profileCreationError);
+        return { data: { user, profile: null }, error: profileCreationError };
+      }
     }
 
     return { data: { user, profile }, error: null };
