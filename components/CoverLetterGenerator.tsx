@@ -246,7 +246,7 @@ const CoverLetterGenerator = () => {
       const creditResult = await useCredit(user.user.id);
       
       if (!creditResult.success) {
-        throw new Error(creditResult.error || 'Failed to use credit');
+        throw new Error('Failed to use credit');
       }
       
       // Update local credits count

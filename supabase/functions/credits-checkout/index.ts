@@ -1,13 +1,16 @@
 // supabase/functions/credits-checkout/index.ts
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+//deno-lint-ignore-file
+//deno-lint-ignore-file no-explicit-any require-await
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@12.0.0'
 
 const allowedOrigins = [
   'https://covergen.vercel.app',
   'http://localhost:3000',
-  'http://localhost:5173'  // Vite default port
+  'http://localhost:5173',  // Vite default port
+  'https://cvtoletter.com',
+  'https://www.cvtoletter.com',
+  'https://covergen-wild-mountain-3122.fly.dev'
 ]
 
 const corsHeaders = (req: Request) => ({
@@ -19,13 +22,12 @@ const corsHeaders = (req: Request) => ({
   'Access-Control-Max-Age': '86400',
 })
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2023-10-16',
-  httpClient: Stripe.createFetchHttpClient(),
 })
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
-const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const supabaseUrl = process.env.SUPABASE_URL || ''
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey)
 
@@ -58,7 +60,7 @@ async function ensureUserProfile(userId: string) {
   return profile
 }
 
-serve(async (req) => {
+export const handler = async (req: Request) => {
   const headers = corsHeaders(req)
   
   // Handle CORS preflight requests
@@ -142,7 +144,7 @@ serve(async (req) => {
     }
 
     // Create Checkout Session
-    const sessionParams = {
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
       client_reference_id: user_id,
       line_items: [
@@ -151,11 +153,11 @@ serve(async (req) => {
           quantity: 1,
         },
       ],
-      mode: 'payment', // Changed from 'subscription' to 'payment' for one-time purchases
+      mode: 'payment' as Stripe.Checkout.SessionCreateParams.Mode,
       success_url: success_url,
       cancel_url: cancel_url,
       payment_intent_data: {
-        metadata: metadata || {} // Pass along any metadata
+        metadata: metadata || {}
       }
     };
     
@@ -183,4 +185,4 @@ serve(async (req) => {
       status: 500,
     });
   }
-});
+}

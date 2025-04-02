@@ -1,16 +1,14 @@
 // supabase/functions/stripe-webhook/index.ts
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Stripe from 'https://esm.sh/stripe@12.0.0'
+import { createClient } from '@supabase/supabase-js'
+import Stripe from 'stripe'
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2023-10-16',
-  httpClient: Stripe.createFetchHttpClient(),
 })
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
-const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const supabaseUrl = process.env.SUPABASE_URL || ''
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey)
 
@@ -35,7 +33,7 @@ async function logWebhookEvent(eventType: string, stripeEventId: string, payload
   }
 }
 
-serve(async (req) => {
+export const handler = async (req: Request) => {
   const signature = req.headers.get('stripe-signature')
 
   if (!signature) {
@@ -45,7 +43,7 @@ serve(async (req) => {
 
   try {
     const body = await req.text()
-    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET')
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SIGNING_SECRET
     
     if (!webhookSecret) {
       await logWebhookEvent('unknown', 'none', {}, false, 'Webhook signing secret is not configured');
@@ -198,4 +196,4 @@ serve(async (req) => {
       status: 400,
     })
   }
-})
+}
