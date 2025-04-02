@@ -1,7 +1,7 @@
-import { Database } from '@/types/supabase';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-export const supabase = createClientComponentClient<Database>();
+// Create a singleton Supabase client to be used across the application
+export const supabase = createClientComponentClient();
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -9,9 +9,63 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 console.log("Initializing Supabase client with URL:", supabaseUrl);
 
+// Stored session state
+let currentSession: any = null;
+let sessionInitialized = false;
+
+// Initialize and get the current session
+export const initSession = async () => {
+  try {
+    if (!sessionInitialized) {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Error initializing session:', error);
+        return null;
+      }
+      
+      currentSession = data.session;
+      sessionInitialized = true;
+      console.log('Session initialized:', currentSession ? 'active' : 'none');
+    }
+    
+    return currentSession;
+  } catch (error) {
+    console.error('Error in initSession:', error);
+    return null;
+  }
+};
+
+// Get and possibly refresh the current session
+export const getSession = async () => {
+  try {
+    // If we have a session already, return it
+    if (sessionInitialized && currentSession) {
+      return currentSession;
+    }
+    
+    // Otherwise initialize it
+    return await initSession();
+  } catch (error) {
+    console.error('Error in getSession:', error);
+    return null;
+  }
+};
+
+// Update the session when it changes
+export const updateSession = (session: any) => {
+  currentSession = session;
+  sessionInitialized = true;
+};
+
+// Set up auth state change listener to keep session updated
+if (typeof window !== 'undefined') {
+  supabase.auth.onAuthStateChange((event, session) => {
+    updateSession(session);
+  });
+}
+
 export async function testSupabaseConnection() {
   try {
-    console.log('Testing Supabase connection...');
     
     // First check if we have a valid session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -179,11 +233,14 @@ export const signInWithGoogle = async () => {
   }
 };
 
-// Sign Out
+// Sign Out with session cleanup
 export const signOut = async () => {
   try {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    
+    // Clear session state
+    updateSession(null);
     return { error: null };
   } catch (error: any) {
     console.error('Error signing out:', error);
@@ -194,10 +251,25 @@ export const signOut = async () => {
 // Get Current User
 export const getCurrentUser = async () => {
   try {
+    // First check if we have a valid session
+    const session = await getSession();
+    
+    if (!session) {
+      console.log('No active session found in getCurrentUser');
+      return { data: null, error: new Error('No active session') };
+    }
+    
+    // Get user data
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (userError) throw userError;
-    if (!user) return { data: null, error: null };
+    if (userError) {
+      console.error('Error getting user:', userError);
+      return { data: null, error: userError };
+    }
+    
+    if (!user) {
+      return { data: null, error: new Error('User not found') };
+    }
 
     // Get profile data
     const { data: profile, error: profileError } = await supabase
@@ -208,7 +280,6 @@ export const getCurrentUser = async () => {
 
     if (profileError) {
       console.error('Error fetching profile:', profileError);
-      return { data: null, error: profileError };
     }
 
     // Create profile if it doesn't exist (for Google login users)
@@ -252,8 +323,3 @@ export const getCurrentUser = async () => {
     return { data: null, error };
   }
 };
-
-export async function getSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session;
-}

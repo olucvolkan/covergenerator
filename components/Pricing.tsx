@@ -186,16 +186,7 @@ export default function Pricing() {
                 <p className="text-gray-600">Save your cover letters in your account</p>
               </div>
             </div>
-            
-            <div className="flex items-start">
-              <svg className="h-6 w-6 text-primary mt-1 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
-              <div>
-                <h3 className="font-semibold text-gray-900">Multiple Formats</h3>
-                <p className="text-gray-600">Various templates to choose from</p>
-              </div>
-            </div>
+
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { getCurrentUser, signOut } from '@/lib/auth';
+import { getCurrentUser, initSession, signOut } from '@/lib/auth';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import LoginModal from './LoginModal';
@@ -13,10 +13,21 @@ export default function Navbar() {
   useEffect(() => {
     const checkUser = async () => {
       try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
+        setLoading(true);
+        
+        // First initialize the session
+        await initSession();
+        
+        const { data, error } = await getCurrentUser();
+        if (error) {
+          console.error('Error in Navbar auth check:', error);
+          setUser(null);
+        } else {
+          setUser(data?.user || null);
+        }
       } catch (err) {
-        console.error('Error fetching user:', err);
+        console.error('Error fetching user in Navbar:', err);
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -32,8 +43,8 @@ export default function Navbar() {
   const handleModalClose = async () => {
     setShowLoginModal(false);
     // Check if user has logged in
-    const currentUser = await getCurrentUser();
-    setUser(currentUser);
+    const { data } = await getCurrentUser();
+    setUser(data?.user || null);
   };
 
   const handleLogout = async () => {
@@ -75,6 +86,9 @@ export default function Navbar() {
               <div className="w-20 h-8 bg-gray-200 animate-pulse rounded-md"></div>
             ) : user ? (
               <div className="flex items-center space-x-4">
+                <Link href="/profile" className="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium">
+                  Profile
+                </Link>
                 <span className="text-sm text-gray-700">
                   {user.email}
                 </span>

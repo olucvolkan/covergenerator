@@ -137,6 +137,7 @@ serve(async (req) => {
           .from('profiles')
           .update({
             credits: newCredits,
+            has_paid: true,
             stripe_customer_id: customerId,
             updated_at: new Date().toISOString()
           })

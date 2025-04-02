@@ -24,7 +24,7 @@ export default function SuccessPage() {
         }
 
         // Get credits from URL params
-        const credits = searchParams.get('credits')
+        const credits = searchParams?.get('credits')
         if (!credits) {
           setStatus('error')
           setMessage('No credits information found')
@@ -48,7 +48,7 @@ export default function SuccessPage() {
 
         const data = await response.json()
         setStatus('success')
-        setMessage(`Payment successful! ${credits} credits have been added to your account.`)
+        setMessage(`Payment successful! ${credits} credits have been added to your account and premium status activated.`)
 
         // Redirect to home page after 3 seconds
         setTimeout(() => {

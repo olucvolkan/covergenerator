@@ -33,11 +33,12 @@ export async function POST(request: Request) {
     const currentCredits = profile?.credits || 0
     const { credits } = await request.json()
 
-    // Update credits
+    // Update credits and set has_paid to true
     const { error: updateError } = await supabase
       .from('profiles')
       .update({ 
         credits: currentCredits + credits,
+        has_paid: true,
         updated_at: new Date().toISOString()
       })
       .eq('id', user.id)
@@ -48,7 +49,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      credits: currentCredits + credits 
+      credits: currentCredits + credits,
+      has_paid: true
     })
 
   } catch (error) {
