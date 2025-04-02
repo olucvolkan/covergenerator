@@ -23,7 +23,7 @@ export const CREDIT_PLANS: Record<PlanId, CreditPlan> = {
     price: 10,
     pricePerCredit: 2.00,
     savings: '0%',
-    stripe_price_id: 'price_1R9Ays09K2M4O1H8CtFYXcwQ', // Replace with actual price ID
+    stripe_price_id: process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER || 'price_1R9Ays09K2M4O1H8CtFYXcwQ',
   },
   basic: {
     id: 'basic',
@@ -33,7 +33,7 @@ export const CREDIT_PLANS: Record<PlanId, CreditPlan> = {
     pricePerCredit: 1.67,
     savings: '17%',
     popular: true,
-    stripe_price_id: 'price_1R9B0009K2M4O1H8aw4Wvf7w', // Replace with actual price ID
+    stripe_price_id: process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC || 'price_1R9B0009K2M4O1H8aw4Wvf7w',
   },
   premium: {
     id: 'premium',
@@ -42,7 +42,7 @@ export const CREDIT_PLANS: Record<PlanId, CreditPlan> = {
     price: 50,
     pricePerCredit: 1.43,
     savings: '29%',
-    stripe_price_id: 'price_1R9B0t09K2M4O1H83v9KK97c', // Replace with actual price ID
+    stripe_price_id: process.env.NEXT_PUBLIC_STRIPE_PRICE_PREMIUM || 'price_1R9B0t09K2M4O1H83v9KK97c',
   },
   unlimited: {
     id: 'unlimited',
@@ -51,7 +51,7 @@ export const CREDIT_PLANS: Record<PlanId, CreditPlan> = {
     price: 120,
     pricePerCredit: 1.20,
     savings: '40%',
-    stripe_price_id: 'price_1R9B1c09K2M4O1H8e0MuOQYo', // Replace with actual price ID
+    stripe_price_id: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE || 'price_1R9B1c09K2M4O1H8e0MuOQYo',
   }
 };
 

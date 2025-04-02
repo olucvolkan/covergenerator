@@ -95,11 +95,16 @@ export const handler = async (req: Request) => {
             const item = lineItems.data[0]
             
             // Map prices to credits based on your plan
+            const starterPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER || 'price_1R9Ays09K2M4O1H8CtFYXcwQ';
+            const basicPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC || 'price_1R9B0009K2M4O1H8aw4Wvf7w';
+            const premiumPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_PREMIUM || 'price_1R9B0t09K2M4O1H83v9KK97c';
+            const enterprisePriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE || 'price_1R9B1c09K2M4O1H8e0MuOQYo';
+            
             const priceToCredits: Record<string, number> = {
-              'price_1R9Ays09K2M4O1H8CtFYXcwQ': 5,    // Starter
-              'price_1R9B0009K2M4O1H8aw4Wvf7w': 15,   // Basic
-              'price_1R9B0t09K2M4O1H83v9KK97c': 35,   // Premium
-              'price_1R9B1c09K2M4O1H8e0MuOQYo': 100   // Enterprise
+              [starterPriceId]: 5,    // Starter
+              [basicPriceId]: 15,   // Basic
+              [premiumPriceId]: 35,   // Premium
+              [enterprisePriceId]: 100   // Enterprise
             }
             
             if (item.price && item.price.id) {

@@ -5,13 +5,13 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@12.0.0'
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2023-10-16',
   httpClient: Stripe.createFetchHttpClient(),
 })
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
-const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const supabaseUrl = process.env.SUPABASE_URL || ''
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey)
 
@@ -46,7 +46,7 @@ serve(async (req) => {
 
   try {
     const body = await req.text()
-    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET')
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SIGNING_SECRET
     
     if (!webhookSecret) {
       await logWebhookEvent('unknown', 'none', {}, false, 'Webhook signing secret is not configured');
@@ -97,11 +97,16 @@ serve(async (req) => {
             const item = lineItems.data[0]
             
             // Map prices to credits based on your plan
+            const starterPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER || 'price_1R9Ays09K2M4O1H8CtFYXcwQ';
+            const basicPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC || 'price_1R9B0009K2M4O1H8aw4Wvf7w';
+            const premiumPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_PREMIUM || 'price_1R9B0t09K2M4O1H83v9KK97c';
+            const enterprisePriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE || 'price_1R9B1c09K2M4O1H8e0MuOQYo';
+            
             const priceToCredits: Record<string, number> = {
-              'price_1R9Ays09K2M4O1H8CtFYXcwQ': 5,    // Starter
-              'price_1R9B0009K2M4O1H8aw4Wvf7w': 15,   // Basic
-              'price_1R9B0t09K2M4O1H83v9KK97c': 35,   // Premium
-              'price_1R9B1c09K2M4O1H8e0MuOQYo': 100   // Enterprise
+              [starterPriceId]: 5,    // Starter
+              [basicPriceId]: 15,   // Basic
+              [premiumPriceId]: 35,   // Premium
+              [enterprisePriceId]: 100   // Enterprise
             }
             
             if (item.price && item.price.id) {
