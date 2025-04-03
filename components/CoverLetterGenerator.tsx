@@ -5,6 +5,7 @@ import { uploadPDF } from '@/lib/pdfParser';
 import { checkUserCredits, useCredit } from '@/lib/stripe';
 import React, { useEffect, useRef, useState } from 'react';
 import LoginModal from './LoginModal';
+import MatchAnalysis from './MatchAnalysis';
 import PlanSelector from './PlanSelector';
 
 const CoverLetterGenerator = () => {
@@ -24,6 +25,12 @@ const CoverLetterGenerator = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [coverLetter, setCoverLetter] = useState<string | null>(null);
   const [userCredits, setUserCredits] = useState<number>(0);
+  const [matchAnalysis, setMatchAnalysis] = useState<{
+    match_score: number;
+    pros: string[];
+    cons: string[];
+    explanation: string;
+  } | null>(null);
 
   // Check Supabase connection and user session on component mount
   useEffect(() => {
@@ -258,6 +265,14 @@ const CoverLetterGenerator = () => {
 
       const data = await response.json();
       setCoverLetter(data.cover_letter);
+      if (data.match_analysis) {
+        setMatchAnalysis({
+          match_score: data.match_analysis.match_score,
+          pros: data.match_analysis.pros,
+          cons: data.match_analysis.cons,
+          explanation: data.match_analysis.explanation
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate cover letter');
     } finally {
@@ -563,12 +578,23 @@ const CoverLetterGenerator = () => {
                     setFile(null);
                     setUploadedFilePath(null);
                     setUploadSuccess(false);
+                    setMatchAnalysis(null);
                   }}
                   className="py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   Create New
                 </button>
               </div>
+              
+              {/* Match Analysis */}
+              {matchAnalysis && (
+                <MatchAnalysis
+                  matchScore={matchAnalysis.match_score}
+                  pros={matchAnalysis.pros}
+                  cons={matchAnalysis.cons}
+                  explanation={matchAnalysis.explanation}
+                />
+              )}
             </div>
           </div>
         )}
