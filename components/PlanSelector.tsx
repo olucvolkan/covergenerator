@@ -41,9 +41,6 @@ const PlanSelector: React.FC<PlanSelectorProps> = ({ onSelectFreePlan, user, set
         throw new Error('Selected plan not found');
       }
       
-      console.log("Attempting to create checkout session for plan:", plan.id);
-      console.log("With price ID:", plan.stripe_price_id);
-      
       // Call createCheckoutSession with the plan ID
       await createCheckoutSession(plan.id as any, plan.stripe_price_id);
       
@@ -53,7 +50,6 @@ const PlanSelector: React.FC<PlanSelectorProps> = ({ onSelectFreePlan, user, set
       setError("Checkout initiated. If you're not redirected automatically, please try again.");
       
     } catch (err: any) {
-      console.error('Error creating checkout session:', err);
       setError(err.message || 'There was an error processing your request. Please try again.');
     } finally {
       setIsLoading(false);
@@ -79,12 +75,12 @@ const PlanSelector: React.FC<PlanSelectorProps> = ({ onSelectFreePlan, user, set
             key={plan.id}
             className={`relative rounded-xl border-2 transition-all duration-200 ${
               selectedPlan === plan.id 
-                ? 'border-primary shadow-lg scale-105 bg-white z-10' 
+                ? 'border-blue-600 shadow-lg scale-105 bg-white z-10' 
                 : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow'
             }`}
           >
             {plan.popular && (
-              <div className="absolute -top-3 left-0 right-0 mx-auto w-max px-3 py-1 bg-primary text-white text-xs font-semibold rounded-full">
+              <div className="absolute -top-3 left-0 right-0 mx-auto w-max px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
                 Most Popular
               </div>
             )}
@@ -122,7 +118,7 @@ const PlanSelector: React.FC<PlanSelectorProps> = ({ onSelectFreePlan, user, set
                 onClick={() => handleSelectPlan(plan.id)}
                 className={`w-full py-3 px-4 rounded-lg font-medium ${
                   selectedPlan === plan.id
-                    ? 'bg-primary text-white'
+                    ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                 }`}
               >
@@ -154,7 +150,7 @@ const PlanSelector: React.FC<PlanSelectorProps> = ({ onSelectFreePlan, user, set
             onClick={handleProceedToCheckout}
             disabled={isLoading}
             className={`py-3 px-8 text-lg font-medium rounded-lg 
-              ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-blue-700'} 
+              ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} 
               text-white transition-colors
             `}
           >

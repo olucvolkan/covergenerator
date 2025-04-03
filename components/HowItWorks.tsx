@@ -9,7 +9,7 @@ const HowItWorks = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Hero Section */}
         <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">How CoverGen Works</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">How CvtoLetter Works</h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Discover how our AI-powered system analyzes your CV and creates tailored cover letters that get you noticed
           </p>

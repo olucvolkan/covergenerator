@@ -4,7 +4,7 @@ import Navbar from '../components/Navbar';
 import '../styles/globals.css';
 
 export const metadata: Metadata = {
-  title: 'CoverGen - Cover Letter Generator',
+  title: 'CvToLetter - Cover Letter Generator',
   description: 'Generate personalized cover letters for your job applications',
 };
 
@@ -15,9 +15,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
+      <body className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Navbar />
-        {children}
+        <div className="container mx-auto px-4">
+          {children}
+        </div>
       </body>
     </html>
   );

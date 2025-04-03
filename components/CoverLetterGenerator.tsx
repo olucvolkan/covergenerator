@@ -58,7 +58,6 @@ const CoverLetterGenerator = () => {
           setUserCredits(creditsInfo.credits || 0);
         }
       } catch (err: any) {
-        console.error('Error initializing app:', err);
         setConnectionStatus({
           success: false,
           message: `Error: ${err.message || "Unknown error"}`
@@ -71,7 +70,6 @@ const CoverLetterGenerator = () => {
 
   // PDF file validation function
   const validatePdfFile = (file: File): boolean => {
-    console.log("Validating file:", file.name, file.type, file.size);
     
     // File type check
     if (file.type !== 'application/pdf') {
@@ -90,14 +88,12 @@ const CoverLetterGenerator = () => {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log("File input change event triggered");
     setError(null);
     setWarning(null);
     setUploadSuccess(false);
     
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
-      console.log("File selected:", selectedFile.name, selectedFile.type, selectedFile.size);
       
       if (validatePdfFile(selectedFile)) {
         setFile(selectedFile);
@@ -115,8 +111,6 @@ const CoverLetterGenerator = () => {
           fileInputRef.current.value = '';
         }
       }
-    } else {
-      console.log("No file selected or file input event did not contain files");
     }
   };
 
@@ -133,16 +127,12 @@ const CoverLetterGenerator = () => {
       setUserCredits(creditsInfo.credits || 0);
       
       if (creditsInfo.credits <= 0) {
-        console.log("User does not have any credits. Showing plan selector.");
         // Direct the user to the plan selector
         setShowPlanSelector(true);
         setFile(fileToUpload); // Save the file for later upload after plan selection
         return;
       }
-      
-      console.log("User has credits. Proceeding with upload.");
     } catch (err) {
-      console.error("Error checking credits:", err);
       // If there's an error checking credits, continue as if they don't have any
       setShowPlanSelector(true);
       setFile(fileToUpload);
@@ -158,7 +148,6 @@ const CoverLetterGenerator = () => {
     try {
       // Upload PDF to Supabase Storage
       const result = await uploadPDF(fileToUpload, user.user.id);
-      console.log("File uploaded to Supabase:", result);
       
       setUploadedFilePath(result.path);
       setUploadedFileId(result.id);
@@ -169,8 +158,6 @@ const CoverLetterGenerator = () => {
         setWarning(result.warning);
       }
     } catch (err: any) {
-      console.error("Error uploading file to Supabase:", err);
-      
       // Provide a more detailed error message if it's a bucket issue
       if (err.message && err.message.includes('bucket')) {
         setError(err.message);
@@ -197,10 +184,8 @@ const CoverLetterGenerator = () => {
     setWarning(null);
     setUploadSuccess(false);
     
-    console.log("File drop event triggered");
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const droppedFile = e.dataTransfer.files[0];
-      console.log("File dropped:", droppedFile.name, droppedFile.type, droppedFile.size);
       
       if (validatePdfFile(droppedFile)) {
         setFile(droppedFile);
@@ -274,7 +259,6 @@ const CoverLetterGenerator = () => {
       const data = await response.json();
       setCoverLetter(data.cover_letter);
     } catch (err) {
-      console.error('Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to generate cover letter');
     } finally {
       setIsGenerating(false);
@@ -331,7 +315,6 @@ const CoverLetterGenerator = () => {
     try {
       // Upload PDF to Supabase Storage
       const result = await uploadPDF(fileToUpload, user.id);
-      console.log("File uploaded to Supabase:", result);
       
       setUploadedFilePath(result.path);
       setUploadedFileId(result.id);
@@ -342,8 +325,6 @@ const CoverLetterGenerator = () => {
         setWarning(result.warning);
       }
     } catch (err: any) {
-      console.error("Error uploading file to Supabase:", err);
-      
       // Provide a more detailed error message if it's a bucket issue
       if (err.message && err.message.includes('bucket')) {
         setError(err.message);
@@ -371,27 +352,22 @@ const CoverLetterGenerator = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16">
-        <div className="text-center mb-16">
-          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">Create Professional Cover Letters in Seconds</h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">Upload your CV, paste the job description, and get a tailored cover letter instantly</p>
-        </div>
-
         {/* Credits Status */}
         {user && (
           <div className="mb-8 flex justify-center">
             <div className="inline-flex items-center px-4 py-2 bg-white rounded-full shadow-sm">
               <div className="flex items-center mr-3">
-                <svg className="h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="ml-1 font-medium text-gray-800">Credits:</span>
               </div>
-              <span className="text-lg font-bold text-primary">{userCredits}</span>
+              <span className="text-lg font-bold text-blue-600">{userCredits}</span>
               
               {userCredits === 0 && (
                 <button
                   onClick={() => setShowPlanSelector(true)}
-                  className="ml-4 text-sm bg-primary text-white py-1 px-3 rounded hover:bg-blue-700"
+                  className="ml-4 text-sm bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700"
                 >
                   Buy Credits
                 </button>
@@ -429,7 +405,7 @@ const CoverLetterGenerator = () => {
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
             <div className="p-6">
               <div className="flex items-center justify-center mb-6">
-                <svg className="h-8 w-8 text-primary mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-8 w-8 text-blue-600 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <h2 className="text-2xl font-semibold text-gray-800">Upload your CV</h2>
@@ -453,11 +429,11 @@ const CoverLetterGenerator = () => {
                     
                     {isUploading && (
                       <div className="flex items-center justify-center mt-2">
-                        <svg className="animate-spin h-5 w-5 text-primary mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-5 w-5 text-blue-600 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <p className="text-primary">Uploading...</p>
+                        <p className="text-blue-600">Uploading...</p>
                       </div>
                     )}
                     
@@ -485,7 +461,7 @@ const CoverLetterGenerator = () => {
                   <>
                     <div className="space-y-2">
                       <div className="flex items-center justify-center">
-                        <svg className="h-16 w-16 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="h-16 w-16 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
                       </div>
@@ -512,7 +488,7 @@ const CoverLetterGenerator = () => {
                   </p>
                   <button 
                     onClick={() => setShowLoginModal(true)}
-                    className="mt-2 text-sm bg-primary text-white py-1 px-3 rounded hover:bg-blue-700"
+                    className="mt-2 text-sm bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700"
                   >
                     Sign in
                   </button>
@@ -526,7 +502,7 @@ const CoverLetterGenerator = () => {
                   </p>
                   <button 
                     onClick={() => setShowPlanSelector(true)}
-                    className="mt-2 text-sm bg-primary text-white py-1 px-3 rounded hover:bg-blue-700"
+                    className="mt-2 text-sm bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700"
                   >
                     Buy Credits
                   </button>
@@ -539,7 +515,7 @@ const CoverLetterGenerator = () => {
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
             <div className="p-6">
               <div className="flex items-center justify-center mb-6">
-                <svg className="h-8 w-8 text-primary mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-8 w-8 text-blue-600 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
                 <h2 className="text-2xl font-semibold text-gray-800">Job Description</h2>
@@ -565,7 +541,7 @@ const CoverLetterGenerator = () => {
             className={`py-3 px-8 text-lg font-medium rounded-lg transition-colors ${
               isGenerating || !uploadedFilePath || !jobDescription || !user || userCredits <= 0
                 ? 'bg-gray-400 cursor-not-allowed text-white'
-                : 'bg-primary hover:bg-blue-700 text-white'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
             }`}
           >
             {isGenerating ? (
@@ -601,7 +577,7 @@ const CoverLetterGenerator = () => {
               <div className="mt-4 flex space-x-4">
                 <button
                   onClick={() => navigator.clipboard.writeText(coverLetter)}
-                  className="py-2 px-4 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                  className="py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
                 >
                   <svg className="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />

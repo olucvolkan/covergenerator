@@ -1,1 +1,1 @@
-# CoverGen - AI Cover Letter Generator
+# CvtoLetter - AI Cover Letter Generator

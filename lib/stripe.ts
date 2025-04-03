@@ -85,9 +85,7 @@ export const createCheckoutSession = async (planId: PlanId, stripePriceId?: stri
     
     // CLIENT_REDIRECT değişkenini oku
     const clientRedirect = process.env.NEXT_PUBLIC_CLIENT_REDIRECT;
-    console.log('Creating checkout session for plan:', planId);
-    console.log('Using price ID:', stripePriceId || plan.stripe_price_id);
-    console.log(session);
+    
     // Call updated Edge Function endpoint
     const response = await fetch('https://fniqovomddsjdsodaxbh.supabase.co/functions/v1/credits-checkout', {
       method: 'POST',
@@ -107,8 +105,6 @@ export const createCheckoutSession = async (planId: PlanId, stripePriceId?: stri
       })
     });
 
-          console.log(response);
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Error response from server:', errorText);
@@ -116,20 +112,17 @@ export const createCheckoutSession = async (planId: PlanId, stripePriceId?: stri
     }
 
     const data = await response.json();
-    console.log('Checkout session response:', data);
 
     // Her iki yöntemi de deneyelim ve ilk başaranı kullanalım
     try {
       if (data.url) {
         // 1. Yöntem: Direct redirect to Stripe checkout page
-        console.log('Direct redirect method with URL:', data.url);
         window.location.assign(data.url); // location.href yerine assign kullanarak
         return true;
       } 
       
       if (data.sessionId) {
         // 2. Yöntem: Stripe.js ile redirectToCheckout
-        console.log('Stripe.js redirect method with sessionId:', data.sessionId);
         const stripe = await getStripe();
         if (!stripe) {
           throw new Error('Failed to initialize Stripe');
@@ -144,7 +137,6 @@ export const createCheckoutSession = async (planId: PlanId, stripePriceId?: stri
       console.error('Redirect error:', redirectError);
       // Yönlendirme hatası varsa, alternatif iframe yöntemini deneyelim
       if (data.url) {
-        console.log('Trying iframe method as fallback');
         const checkoutFrame = document.createElement('iframe');
         checkoutFrame.src = data.url;
         checkoutFrame.style.width = '100%';

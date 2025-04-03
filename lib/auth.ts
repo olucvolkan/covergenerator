@@ -7,8 +7,6 @@ export const supabase = createClientComponentClient();
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-console.log("Initializing Supabase client with URL:", supabaseUrl);
-
 // Get and possibly refresh the current session
 export const getSession = async () => {
   try {
@@ -49,7 +47,6 @@ export const getCurrentUser = async () => {
 
     // Create profile if it doesn't exist (for Google login users)
     if (!profile) {
-      console.log('Profile does not exist for user:', session.user.id);
       const email = session.user.email;
       const fullName = session.user.user_metadata?.full_name || 
                       `${session.user.user_metadata?.first_name || ''} ${session.user.user_metadata?.last_name || ''}`.trim();
@@ -57,8 +54,6 @@ export const getCurrentUser = async () => {
       if (!email) {
         return { data: { user: session.user, profile: null }, error: new Error('Email is required for profile creation') };
       }
-
-      console.log('Creating profile for Google login user:', { userId: session.user.id, email, fullName });
       
       try {
         await createProfile(session.user.id, email, fullName);
@@ -108,7 +103,6 @@ const createProfile = async (userId: string, email: string, fullName: string) =>
     }
 
     if (existingProfile) {
-      console.log("Profile already exists for user:", userId);
       return existingProfile;
     }
 
@@ -130,8 +124,6 @@ const createProfile = async (userId: string, email: string, fullName: string) =>
       console.error("Error creating profile:", profileError);
       throw profileError;
     }
-
-    console.log("Profile created successfully for user:", userId);
   } catch (error) {
     console.error("Error in createProfile:", error);
     throw error;
@@ -141,8 +133,6 @@ const createProfile = async (userId: string, email: string, fullName: string) =>
 // Set up auth state change listener
 if (typeof window !== 'undefined') {
   supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('Auth state changed:', event, session ? 'has session' : 'no session');
-    
     if (event === 'SIGNED_OUT') {
       // Clear any cached data
       window.location.href = '/';
@@ -165,7 +155,6 @@ export async function testSupabaseConnection() {
     }
     
     // Check if we can access the database
-    console.log('Testing database access...');
     let databaseWarning = null;
     
     try {
@@ -177,8 +166,6 @@ export async function testSupabaseConnection() {
       if (error) {
         console.warn('Database access error:', error);
         databaseWarning = `Database issue: ${error.message}`;
-      } else {
-        console.log('Database access successful:', data ? data.length : 0, 'records');
       }
     } catch (dbError) {
       console.warn('Exception during database access:', dbError);
@@ -186,7 +173,6 @@ export async function testSupabaseConnection() {
     }
     
     // Check if we can access the Storage bucket
-    console.log('Testing Storage access...');
     let storageWarning = null;
     
     try {
@@ -204,9 +190,7 @@ export async function testSupabaseConnection() {
         } else {
           storageWarning = `Storage issue: ${bucketError.message}`;
         }
-      } else {
-        console.log('Storage access successful, found', bucketFiles ? bucketFiles.length : 0, 'files');
-      }
+      } 
     } catch (storageError) {
       console.warn('Exception during storage access:', storageError);
       storageWarning = `Storage exception: ${storageError instanceof Error ? storageError.message : String(storageError)}`;
