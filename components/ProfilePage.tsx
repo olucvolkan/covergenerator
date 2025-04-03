@@ -34,13 +34,9 @@ export default function ProfilePage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  // Using the centralized supabase client from lib/auth
-  // No need to create a new client instance here
-
   const fetchUserData = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('Fetching user data...');
       
       // Get user data from auth
       const { data, error: userError } = await getCurrentUser();
@@ -48,6 +44,7 @@ export default function ProfilePage() {
       if (userError) {
         console.error('Error fetching user data:', userError);
         setError('Failed to fetch user data');
+        router.push('/?login=true');
         return;
       }
       
@@ -57,7 +54,7 @@ export default function ProfilePage() {
         return;
       }
 
-      console.log('User data fetched successfully');
+      console.log('User data fetched successfully:', data.user.id);
       
       // Fetch cover letters for this user
       const { data: coverLettersData, error: coverLettersError } = await supabase
@@ -76,6 +73,9 @@ export default function ProfilePage() {
     } catch (err: any) {
       console.error('Error fetching profile data:', err);
       setError(err.message || 'Failed to load profile data');
+      if (err.message?.includes('No active session')) {
+        router.push('/?login=true');
+      }
     } finally {
       setLoading(false);
     }

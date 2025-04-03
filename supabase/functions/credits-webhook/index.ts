@@ -1,17 +1,16 @@
 // supabase/functions/credits-webhook/index.ts
 //deno-lint-ignore-file
 //deno-lint-ignore-file no-explicit-any require-await
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@12.0.0'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
   apiVersion: '2023-10-16',
   httpClient: Stripe.createFetchHttpClient(),
 })
 
-const supabaseUrl = process.env.SUPABASE_URL || ''
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey)
 
@@ -36,7 +35,7 @@ async function logWebhookEvent(eventType: string, stripeEventId: string, payload
   }
 }
 
-serve(async (req) => {
+export const handler = async (req: Request) => {
   const signature = req.headers.get('stripe-signature')
 
   if (!signature) {
@@ -46,7 +45,7 @@ serve(async (req) => {
 
   try {
     const body = await req.text()
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SIGNING_SECRET
+    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET')
     
     if (!webhookSecret) {
       await logWebhookEvent('unknown', 'none', {}, false, 'Webhook signing secret is not configured');
@@ -97,10 +96,10 @@ serve(async (req) => {
             const item = lineItems.data[0]
             
             // Map prices to credits based on your plan
-            const starterPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER || 'price_1R9Ays09K2M4O1H8CtFYXcwQ';
-            const basicPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC || 'price_1R9B0009K2M4O1H8aw4Wvf7w';
-            const premiumPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_PREMIUM || 'price_1R9B0t09K2M4O1H83v9KK97c';
-            const enterprisePriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE || 'price_1R9B1c09K2M4O1H8e0MuOQYo';
+            const starterPriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_STARTER') || 'price_1R9Ays09K2M4O1H8CtFYXcwQ';
+            const basicPriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_BASIC') || 'price_1R9B0009K2M4O1H8aw4Wvf7w';
+            const premiumPriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_PREMIUM') || 'price_1R9B0t09K2M4O1H83v9KK97c';
+            const enterprisePriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE') || 'price_1R9B1c09K2M4O1H8e0MuOQYo';
             
             const priceToCredits: Record<string, number> = {
               [starterPriceId]: 5,    // Starter
@@ -204,4 +203,4 @@ serve(async (req) => {
       status: 400,
     })
   }
-})
+}

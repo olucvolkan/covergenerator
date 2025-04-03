@@ -51,7 +51,7 @@ export const CREDIT_PLANS: Record<PlanId, CreditPlan> = {
     price: 120,
     pricePerCredit: 1.20,
     savings: '40%',
-    stripe_price_id: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE || 'price_1R9B1c09K2M4O1H8e0MuOQYo',
+    stripe_price_id: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE ?? 'price_1R9B1c09K2M4O1H8e0MuOQYo',
   }
 };
 
@@ -82,7 +82,9 @@ export const createCheckoutSession = async (planId: PlanId, stripePriceId?: stri
     if (!session?.access_token) {
       throw new Error('No active session found');
     }
-
+    
+    // CLIENT_REDIRECT değişkenini oku
+    const clientRedirect = process.env.NEXT_PUBLIC_CLIENT_REDIRECT;
     console.log('Creating checkout session for plan:', planId);
     console.log('Using price ID:', stripePriceId || plan.stripe_price_id);
     console.log(session);
@@ -96,14 +98,16 @@ export const createCheckoutSession = async (planId: PlanId, stripePriceId?: stri
       body: JSON.stringify({
         price_id: stripePriceId || plan.stripe_price_id,
         user_id: session.user.id,
-        success_url: `${window.location.origin}/success?credits=${plan.credits}`,
-        cancel_url: `${window.location.origin}/pricing`,
+        success_url: `${clientRedirect}/success?credits=${plan.credits}`,
+        cancel_url: `${clientRedirect}/pricing`,
         metadata: {
           plan_id: planId,
           credits: plan.credits
         }
       })
     });
+
+          console.log(response);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -114,30 +118,52 @@ export const createCheckoutSession = async (planId: PlanId, stripePriceId?: stri
     const data = await response.json();
     console.log('Checkout session response:', data);
 
-    if (data.url) {
-      // Direct redirect to Stripe checkout page
-      window.location.href = data.url;
-      return true;
-    } else if (data.sessionId) {
-      // Redirect using Stripe.js
-      const stripe = await getStripe();
-      if (!stripe) {
-        throw new Error('Failed to initialize Stripe');
-      }
-
-      const { error } = await stripe.redirectToCheckout({
-        sessionId: data.sessionId
-      });
-
-      if (error) {
-        console.error('Stripe redirect error:', error);
-        throw new Error(error.message || 'Failed to redirect to checkout');
-      }
+    // Her iki yöntemi de deneyelim ve ilk başaranı kullanalım
+    try {
+      if (data.url) {
+        // 1. Yöntem: Direct redirect to Stripe checkout page
+        console.log('Direct redirect method with URL:', data.url);
+        window.location.assign(data.url); // location.href yerine assign kullanarak
+        return true;
+      } 
       
+      if (data.sessionId) {
+        // 2. Yöntem: Stripe.js ile redirectToCheckout
+        console.log('Stripe.js redirect method with sessionId:', data.sessionId);
+        const stripe = await getStripe();
+        if (!stripe) {
+          throw new Error('Failed to initialize Stripe');
+        }
+
+        await stripe.redirectToCheckout({
+          sessionId: data.sessionId
+        });
+        return true;
+      }
+    } catch (redirectError) {
+      console.error('Redirect error:', redirectError);
+      // Yönlendirme hatası varsa, alternatif iframe yöntemini deneyelim
+      if (data.url) {
+        console.log('Trying iframe method as fallback');
+        const checkoutFrame = document.createElement('iframe');
+        checkoutFrame.src = data.url;
+        checkoutFrame.style.width = '100%';
+        checkoutFrame.style.height = '100%';
+        checkoutFrame.style.position = 'fixed';
+        checkoutFrame.style.top = '0';
+        checkoutFrame.style.left = '0';
+        checkoutFrame.style.zIndex = '9999';
+        checkoutFrame.style.border = 'none';
+        
+        document.body.appendChild(checkoutFrame);
       return true;
     } else {
       throw new Error('No checkout URL or session ID returned');
     }
+    }
+    
+    // Hiçbir yöntem başarılı olmadıysa hata fırlat
+    throw new Error('No checkout URL or session ID returned, or all redirect methods failed');
   } catch (error: any) {
     console.error('Failed to create checkout session:', error);
     throw error;

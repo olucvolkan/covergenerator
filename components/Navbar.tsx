@@ -1,6 +1,6 @@
 "use client";
 
-import { getCurrentUser, initSession, signOut } from '@/lib/auth';
+import { getCurrentUser, signOut } from '@/lib/auth';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import LoginModal from './LoginModal';
@@ -14,11 +14,8 @@ export default function Navbar() {
     const checkUser = async () => {
       try {
         setLoading(true);
-        
-        // First initialize the session
-        await initSession();
-        
         const { data, error } = await getCurrentUser();
+        
         if (error) {
           console.error('Error in Navbar auth check:', error);
           setUser(null);

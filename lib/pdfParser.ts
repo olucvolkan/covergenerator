@@ -1,11 +1,6 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { supabase } from './auth'
 
 export const uploadPDF = async (file: File, userId: string) => {
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
   // Upload file to storage
   const { data: storageData, error: storageError } = await supabase.storage
     .from('resumes')

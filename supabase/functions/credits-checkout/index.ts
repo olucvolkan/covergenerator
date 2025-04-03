@@ -1,33 +1,48 @@
 // supabase/functions/credits-checkout/index.ts
 //deno-lint-ignore-file
 //deno-lint-ignore-file no-explicit-any require-await
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Stripe from 'https://esm.sh/stripe@12.0.0'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import Stripe from 'https://esm.sh/stripe@12.0.0';
 
 const allowedOrigins = [
-  'https://covergen.vercel.app',
+  'https://covergen-wild-mountain-3122.fly.dev',
   'http://localhost:3000',
   'http://localhost:5173',  // Vite default port
   'https://cvtoletter.com',
   'https://www.cvtoletter.com',
-  'https://covergen-wild-mountain-3122.fly.dev'
+  'http://cvtoletter.com',
+  'http://covergen-wild-mountain-3122.fly.dev',
+  '*' // Geçici olarak tüm kaynaklara izin ver (test için)
 ]
 
-const corsHeaders = (req: Request) => ({
-  'Access-Control-Allow-Origin': allowedOrigins.includes(req.headers.get('origin') || '') 
-    ? req.headers.get('origin')! 
-    : allowedOrigins[0],
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Max-Age': '86400',
-})
+const corsHeaders = (req: Request) => {
+  const origin = req.headers.get('origin') || '';
+  console.log(`Request origin: ${origin}`);
+  
+  // allowedOrigins değerini kullan
+  return {
+    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Max-Age': '86400',
+  };
+}
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
   apiVersion: '2023-10-16',
+  httpClient: Stripe.createFetchHttpClient(),
 })
 
-const supabaseUrl = process.env.SUPABASE_URL || ''
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+// Log Stripe configuration (without exposing full secret key)
+console.log('Stripe Configuration:', {
+  apiVersion: '2023-10-16',
+  secretKeyPrefix: Deno.env.get('STRIPE_SECRET_KEY')?.substring(0, 10) + '...',
+  isTestMode: Deno.env.get('STRIPE_SECRET_KEY')?.startsWith('sk_test_')
+});
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey)
 
@@ -60,9 +75,9 @@ async function ensureUserProfile(userId: string) {
   return profile
 }
 
-export const handler = async (req: Request) => {
+serve(async (req) => {
   const headers = corsHeaders(req)
-  
+  console.log(headers);
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers })
@@ -84,8 +99,69 @@ export const handler = async (req: Request) => {
 
     const { price_id, user_id, success_url, cancel_url, metadata } = requestBody;
 
-    if (!price_id || !user_id || !success_url || !cancel_url) {
+    if (!price_id || !user_id) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), { 
+        headers: { ...headers, 'Content-Type': 'application/json' }, 
+        status: 400 
+      });
+    }
+
+    // Get base URL from environment or request origin
+    const baseUrl = Deno.env.get('CLIENT_REDIRECT') || 
+                   req.headers.get('origin') || 
+                   'https://covergen-wild-mountain-3122.fly.dev';
+
+    // Construct success and cancel URLs
+    const finalSuccessUrl = success_url?.includes('undefined') 
+      ? `${baseUrl}/success?credits=${metadata?.credits || 0}`
+      : success_url;
+
+    const finalCancelUrl = cancel_url?.includes('undefined')
+      ? `${baseUrl}/pricing`
+      : cancel_url;
+
+    console.log('URLs:', {
+      baseUrl,
+      finalSuccessUrl,
+      finalCancelUrl
+    });
+
+    console.log('Validating price ID:', price_id);
+    try {
+      // List all prices first to debug
+      const prices = await stripe.prices.list({
+        limit: 100,
+        active: true
+      });
+      console.log('Available prices:', prices.data.map(p => ({
+        id: p.id,
+        active: p.active,
+        currency: p.currency,
+        product: p.product
+      })));
+
+      const price = await stripe.prices.retrieve(price_id);
+      console.log('Price found:', {
+        id: price.id,
+        active: price.active,
+        currency: price.currency,
+        product: price.product,
+        type: price.type,
+        unit_amount: price.unit_amount,
+        created: price.created
+      });
+    } catch (priceError) {
+      console.error('Error retrieving price:', {
+        error: priceError instanceof Error ? priceError.message : 'Unknown error',
+        priceId: price_id,
+        stripeKeyPrefix: Deno.env.get('STRIPE_SECRET_KEY')?.substring(0, 10) + '...',
+        isTestMode: Deno.env.get('STRIPE_SECRET_KEY')?.startsWith('sk_test_')
+      });
+      return new Response(JSON.stringify({ 
+        error: `Invalid price ID: ${price_id}`,
+        details: priceError instanceof Error ? priceError.message : 'Unknown error',
+        isTestMode: Deno.env.get('STRIPE_SECRET_KEY')?.startsWith('sk_test_')
+      }), { 
         headers: { ...headers, 'Content-Type': 'application/json' }, 
         status: 400 
       });
@@ -154,8 +230,8 @@ export const handler = async (req: Request) => {
         },
       ],
       mode: 'payment' as Stripe.Checkout.SessionCreateParams.Mode,
-      success_url: success_url,
-      cancel_url: cancel_url,
+      success_url: finalSuccessUrl,
+      cancel_url: finalCancelUrl,
       payment_intent_data: {
         metadata: metadata || {}
       }
@@ -185,4 +261,4 @@ export const handler = async (req: Request) => {
       status: 500,
     });
   }
-}
+})

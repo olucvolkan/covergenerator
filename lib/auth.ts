@@ -9,58 +9,144 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 console.log("Initializing Supabase client with URL:", supabaseUrl);
 
-// Stored session state
-let currentSession: any = null;
-let sessionInitialized = false;
-
-// Initialize and get the current session
-export const initSession = async () => {
-  try {
-    if (!sessionInitialized) {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error('Error initializing session:', error);
-        return null;
-      }
-      
-      currentSession = data.session;
-      sessionInitialized = true;
-      console.log('Session initialized:', currentSession ? 'active' : 'none');
-    }
-    
-    return currentSession;
-  } catch (error) {
-    console.error('Error in initSession:', error);
-    return null;
-  }
-};
-
 // Get and possibly refresh the current session
 export const getSession = async () => {
   try {
-    // If we have a session already, return it
-    if (sessionInitialized && currentSession) {
-      return currentSession;
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error('Error getting session:', error);
+      return null;
     }
     
-    // Otherwise initialize it
-    return await initSession();
+    return session;
   } catch (error) {
     console.error('Error in getSession:', error);
     return null;
   }
 };
 
-// Update the session when it changes
-export const updateSession = (session: any) => {
-  currentSession = session;
-  sessionInitialized = true;
+// Get current user with profile data
+export const getCurrentUser = async () => {
+  try {
+    const session = await getSession();
+    
+    if (!session?.user) {
+      return { data: { user: null, profile: null }, error: new Error('No active session') };
+    }
+
+    // Get profile data
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profileError) {
+      console.error('Error fetching profile:', profileError);
+      return { data: { user: session.user, profile: null }, error: profileError };
+    }
+
+    // Create profile if it doesn't exist (for Google login users)
+    if (!profile) {
+      console.log('Profile does not exist for user:', session.user.id);
+      const email = session.user.email;
+      const fullName = session.user.user_metadata?.full_name || 
+                      `${session.user.user_metadata?.first_name || ''} ${session.user.user_metadata?.last_name || ''}`.trim();
+
+      if (!email) {
+        return { data: { user: session.user, profile: null }, error: new Error('Email is required for profile creation') };
+      }
+
+      console.log('Creating profile for Google login user:', { userId: session.user.id, email, fullName });
+      
+      try {
+        await createProfile(session.user.id, email, fullName);
+        
+        // Fetch the newly created profile
+        const { data: newProfile, error: newProfileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (newProfileError) {
+          console.error('Error fetching new profile:', newProfileError);
+          return { data: { user: session.user, profile: null }, error: newProfileError };
+        }
+
+        return { data: { user: session.user, profile: newProfile }, error: null };
+      } catch (profileCreationError) {
+        console.error('Error creating profile for Google user:', profileCreationError);
+        return { data: { user: session.user, profile: null }, error: profileCreationError };
+      }
+    }
+
+    return { data: { user: session.user, profile }, error: null };
+  } catch (error) {
+    console.error('Error in getCurrentUser:', error);
+    return { data: { user: null, profile: null }, error };
+  }
 };
 
-// Set up auth state change listener to keep session updated
+// Create profile function
+const createProfile = async (userId: string, email: string, fullName: string) => {
+  if (!userId || !email) {
+    throw new Error('User ID and email are required for profile creation');
+  }
+
+  try {
+    // Check if profile already exists
+    const { data: existingProfile, error: checkError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found"
+      throw checkError;
+    }
+
+    if (existingProfile) {
+      console.log("Profile already exists for user:", userId);
+      return existingProfile;
+    }
+
+    // Create profile record
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert([
+        {
+          id: userId,
+          email,
+          full_name: fullName,
+          credits: 0,
+          generated_cover_letters: 0,
+          has_paid: false
+        }
+      ]);
+
+    if (profileError) {
+      console.error("Error creating profile:", profileError);
+      throw profileError;
+    }
+
+    console.log("Profile created successfully for user:", userId);
+  } catch (error) {
+    console.error("Error in createProfile:", error);
+    throw error;
+  }
+};
+
+// Set up auth state change listener
 if (typeof window !== 'undefined') {
-  supabase.auth.onAuthStateChange((event, session) => {
-    updateSession(session);
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('Auth state changed:', event, session ? 'has session' : 'no session');
+    
+    if (event === 'SIGNED_OUT') {
+      // Clear any cached data
+      window.location.href = '/';
+    }
   });
 }
 
@@ -150,71 +236,6 @@ export async function testSupabaseConnection() {
   }
 }
 
-// Validation functions
-const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-const validatePassword = (password: string): boolean => {
-  return password.length >= 6;
-};
-
-// Create profile function
-const createProfile = async (userId: string, email: string, fullName: string) => {
-  if (!userId || !email) {
-    throw new Error('User ID and email are required for profile creation');
-  }
-
-  try {
-    // Check if profile already exists
-    const { data: existingProfile, error: checkError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (checkError) {
-      throw checkError;
-    }
-    
-    if (existingProfile) {
-      console.log("Profile already exists for user:", userId);
-      return;
-    }
-
-    // Parse full name into first and last name
-    const nameParts = fullName.trim().split(' ');
-    const firstName = nameParts[0];
-    const lastName = nameParts.slice(1).join(' ');
-
-    // Create profile record
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: userId,
-        email: email,
-        first_name: firstName,
-        last_name: lastName,
-        full_name: fullName,
-        has_paid: false,
-        generated_cover_letters: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
-
-    if (profileError) {
-      console.error("Error creating profile:", profileError);
-      throw profileError;
-    }
-
-    console.log("Profile created successfully for user:", userId);
-  } catch (error) {
-    console.error("Error in createProfile:", error);
-    throw error;
-  }
-};
-
 // Google Sign In
 export const signInWithGoogle = async () => {
   try {
@@ -240,86 +261,9 @@ export const signOut = async () => {
     if (error) throw error;
     
     // Clear session state
-    updateSession(null);
     return { error: null };
   } catch (error: any) {
     console.error('Error signing out:', error);
     return { error };
-  }
-};
-
-// Get Current User
-export const getCurrentUser = async () => {
-  try {
-    // First check if we have a valid session
-    const session = await getSession();
-    
-    if (!session) {
-      console.log('No active session found in getCurrentUser');
-      return { data: null, error: new Error('No active session') };
-    }
-    
-    // Get user data
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError) {
-      console.error('Error getting user:', userError);
-      return { data: null, error: userError };
-    }
-    
-    if (!user) {
-      return { data: null, error: new Error('User not found') };
-    }
-
-    // Get profile data
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      console.error('Error fetching profile:', profileError);
-    }
-
-    // Create profile if it doesn't exist (for Google login users)
-    if (!profile) {
-      console.log('Profile does not exist for user:', user.id);
-      try {
-        // Get email from user object
-        const email = user.email;
-        // Get full name from metadata
-        const fullName = user.user_metadata?.full_name || 
-                        (user.user_metadata?.name) || 
-                        user.email?.split('@')[0] || 
-                        'User';
-                        
-        console.log('Creating profile for Google login user:', { userId: user.id, email, fullName });
-        
-        await createProfile(user.id, email as string, fullName);
-        
-        // Fetch the newly created profile
-        const { data: newProfile, error: newProfileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
-          
-        if (newProfileError) {
-          console.error('Error fetching new profile:', newProfileError);
-          return { data: { user, profile: null }, error: newProfileError };
-        }
-        
-        return { data: { user, profile: newProfile }, error: null };
-      } catch (profileCreationError) {
-        console.error('Error creating profile for Google user:', profileCreationError);
-        return { data: { user, profile: null }, error: profileCreationError };
-      }
-    }
-
-    return { data: { user, profile }, error: null };
-  } catch (error: any) {
-    console.error('Error getting current user:', error);
-    return { data: null, error };
   }
 };

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sync-env": "./scripts/update-fly-env.sh",
+    "sync-stripe-env": "./scripts/update-stripe-env.sh"
   },
   "dependencies": {
     "@stripe/stripe-js": "^2.4.0",
