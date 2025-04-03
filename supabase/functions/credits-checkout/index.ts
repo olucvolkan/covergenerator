@@ -6,7 +6,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Stripe from 'https://esm.sh/stripe@12.0.0';
 
 const allowedOrigins = [
-  'https://covergen-wild-mountain-3122.fly.dev',
+  'https://cvtoletter.com',
   'http://localhost:3000',
   'http://localhost:5173',  // Vite default port
   'https://cvtoletter.com',
@@ -109,7 +109,7 @@ serve(async (req) => {
     // Get base URL from environment or request origin
     const baseUrl = Deno.env.get('CLIENT_REDIRECT') || 
                    req.headers.get('origin') || 
-                   'https://covergen-wild-mountain-3122.fly.dev';
+                   'https://cvtoletter.com';
 
     // Construct success and cancel URLs
     const finalSuccessUrl = success_url?.includes('undefined') 
