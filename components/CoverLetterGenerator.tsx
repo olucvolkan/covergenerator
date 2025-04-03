@@ -480,34 +480,6 @@ const CoverLetterGenerator = () => {
                 className="hidden" 
                 onChange={handleFileChange}
               />
-              
-              {!user && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                  <p className="text-blue-700 text-sm">
-                    <span className="font-medium">Note:</span> You'll need to sign in to upload your CV and generate a cover letter.
-                  </p>
-                  <button 
-                    onClick={() => setShowLoginModal(true)}
-                    className="mt-2 text-sm bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700"
-                  >
-                    Sign in
-                  </button>
-                </div>
-              )}
-              
-              {user && userCredits <= 0 && (
-                <div className="mt-4 p-4 bg-orange-50 rounded-lg">
-                  <p className="text-orange-700 text-sm">
-                    <span className="font-medium">Note:</span> You'll need to purchase credits to generate cover letters.
-                  </p>
-                  <button 
-                    onClick={() => setShowPlanSelector(true)}
-                    className="mt-2 text-sm bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700"
-                  >
-                    Buy Credits
-                  </button>
-                </div>
-              )}
             </div>
           </div>
           
