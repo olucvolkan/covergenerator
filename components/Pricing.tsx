@@ -37,9 +37,11 @@ export default function Pricing() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h1>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+            Choose Your Perfect Plan
+          </h1>
           <p className="text-xl text-gray-600">
-            Purchase credits to generate professional cover letters tailored to your resume and job descriptions.
+            Get instant access to AI-powered cover letter generation with our flexible pricing options.
           </p>
         </div>
 
@@ -57,10 +59,12 @@ export default function Pricing() {
           {Object.values(CREDIT_PLANS).map((plan) => (
             <div 
               key={plan.id} 
-              className={`bg-white rounded-lg shadow-lg overflow-hidden border ${plan.popular ? 'border-primary' : 'border-transparent'}`}
+              className={`bg-white rounded-lg shadow-lg overflow-hidden border transform transition-transform duration-300 hover:scale-105 ${
+                plan.popular ? 'border-primary ring-2 ring-primary ring-opacity-50' : 'border-transparent'
+              }`}
             >
               {plan.popular && (
-                <div className="bg-primary text-white text-center py-2 font-medium">
+                <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-center py-2 font-medium">
                   Most Popular
                 </div>
               )}
@@ -69,7 +73,7 @@ export default function Pricing() {
                 <h3 className="text-xl font-bold text-gray-900 mb-2">{plan.name}</h3>
                 
                 <div className="flex items-baseline mt-4 mb-6">
-                  <span className="text-4xl font-extrabold text-gray-900">${plan.price}</span>
+                  <span className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">${plan.price}</span>
                   <span className="ml-1 text-xl text-gray-500">/one-time</span>
                 </div>
                 
@@ -79,25 +83,25 @@ export default function Pricing() {
                 
                 <ul className="space-y-3 mb-6">
                   <li className="flex items-center">
-                    <svg className="h-5 w-5 text-green-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-5 w-5 text-primary mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-600">${plan.pricePerCredit} per letter</span>
                   </li>
                   <li className="flex items-center">
-                    <svg className="h-5 w-5 text-green-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-5 w-5 text-primary mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-600">{plan.savings} savings</span>
                   </li>
                   <li className="flex items-center">
-                    <svg className="h-5 w-5 text-green-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-5 w-5 text-primary mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    <span className="text-gray-600">PDF downloads</span>
+                    <span className="text-gray-600">Unlimited revisions</span>
                   </li>
                   <li className="flex items-center">
-                    <svg className="h-5 w-5 text-green-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-5 w-5 text-primary mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-600">AI optimization</span>
@@ -107,11 +111,11 @@ export default function Pricing() {
                 <button
                   onClick={() => handleSelectPlan(plan.id as PlanId)}
                   disabled={isLoading !== null}
-                  className={`w-full py-3 px-4 rounded-md text-white font-medium ${
+                  className={`w-full py-3 px-4 rounded-md text-white font-medium transition-all duration-300 ${
                     isLoading === plan.id 
                       ? 'bg-gray-400 cursor-not-allowed' 
                       : plan.popular 
-                        ? 'bg-primary hover:bg-blue-700' 
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' 
                         : 'bg-gray-800 hover:bg-gray-700'
                   }`}
                 >
@@ -124,7 +128,7 @@ export default function Pricing() {
                       Processing...
                     </span>
                   ) : (
-                    `Get ${plan.credits} Credits`
+                    `Get Started`
                   )}
                 </button>
               </div>
@@ -164,6 +168,16 @@ export default function Pricing() {
               <div>
                 <h3 className="font-semibold text-gray-900">Job Description Matching</h3>
                 <p className="text-gray-600">Alignment with job requirements</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start">
+              <svg className="h-6 w-6 text-primary mt-1 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+              <div>
+                <h3 className="font-semibold text-gray-900">Match Analysis</h3>
+                <p className="text-gray-600">Detailed analysis of your fit for the role with pros and cons</p>
               </div>
             </div>
             

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     formData.append('job_description', job_description)
     formData.append('file_id', file_id)
 
-    const apiResponse = await fetch('https://covergen-api.fly.dev/generate-smart', {
+    const apiResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}`, {
       method: 'POST',
       body: formData
     })
