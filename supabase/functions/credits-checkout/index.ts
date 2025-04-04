@@ -111,21 +111,39 @@ serve(async (req) => {
                    req.headers.get('origin') || 
                    'https://cvtoletter.com';
 
-    // Construct success and cancel URLs
+    // Encrypt credits value
+    const creditSecretId = Deno.env.get('CREDIT_SECRET_ID')
+    if (!creditSecretId) {
+      throw new Error('CREDIT_SECRET_ID is not configured')
+    }
+
+    const iv = crypto.getRandomValues(new Uint8Array(16))
+    const cipher = await crypto.subtle.encrypt(
+      {
+        name: "AES-GCM",
+        iv: iv
+      },
+      creditSecretId,
+      new TextEncoder().encode(metadata.credits.toString())
+    )
+
+    const encryptedCredits = Array.from(new Uint8Array(cipher))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+
+    const ivHex = Array.from(iv)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+
     const finalSuccessUrl = success_url?.includes('undefined') 
-      ? `${baseUrl}/success?credits=${metadata?.credits || 0}`
+      ? `${baseUrl}/success?ec=${encryptedCredits}&iv=${ivHex}`
       : success_url;
 
     const finalCancelUrl = cancel_url?.includes('undefined')
       ? `${baseUrl}/pricing`
       : cancel_url;
-
-    console.log('URLs:', {
-      baseUrl,
-      finalSuccessUrl,
-      finalCancelUrl
-    });
-
+    
+    
     console.log('Validating price ID:', price_id);
     try {
       // List all prices first to debug

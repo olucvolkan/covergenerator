@@ -1,60 +1,92 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createDecipheriv } from 'crypto'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+const CREDIT_AMOUNTS = {
+  'starter': 5,
+  'basic': 15,
+  'premium': 35,
+  'enterprise': 100
+}
+
 export async function POST(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const { encryptedCredits, iv } = await request.json()
 
-    // Get session from request header
-    const authHeader = request.headers.get('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'No authorization token provided' }, { status: 401 })
+    // Get the user's session
+    const supabase = createRouteHandlerClient({ cookies })
+    const { data: { session } } = await supabase.auth.getSession()
+
+    if (!session) {
+      return NextResponse.json(
+        { error: 'No active session found' },
+        { status: 401 }
+      )
     }
 
-    // Get current user from session
-    const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader.split(' ')[1])
-    
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
+    // Decrypt credits amount
+    const creditSecretId = process.env.CREDIT_SECRET_ID
+    if (!creditSecretId) {
+      throw new Error('CREDIT_SECRET_ID is not configured')
+    }
+
+    const decipher = createDecipheriv('aes-256-gcm', creditSecretId, iv)
+    const decryptedCredits = parseInt(decipher.update(encryptedCredits, 'hex', 'utf8'), 10)
+
+    // Verify if credits amount is valid
+    if (!Object.values(CREDIT_AMOUNTS).includes(decryptedCredits)) {
+      return NextResponse.json(
+        { error: 'Invalid credits amount' },
+        { status: 400 }
+      )
     }
 
     // Get current credits
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('credits')
-      .eq('id', user.id)
+      .eq('id', session.user.id)
       .single()
 
     if (profileError) {
-      return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 })
+      console.error('Error fetching profile:', profileError)
+      return NextResponse.json(
+        { error: 'Failed to fetch user profile' },
+        { status: 500 }
+      )
     }
 
     const currentCredits = profile?.credits || 0
-    const { credits } = await request.json()
+    const newCredits = currentCredits + decryptedCredits
 
-    // Update credits and set has_paid to true
-    const { error: updateError } = await supabase
+    // Update user's credits
+    const { error } = await supabase
       .from('profiles')
-      .update({ 
-        credits: currentCredits + credits,
-        has_paid: true,
+      .update({
+        credits: newCredits,
         updated_at: new Date().toISOString()
       })
-      .eq('id', user.id)
+      .eq('id', session.user.id)
 
-    if (updateError) {
-      return NextResponse.json({ error: 'Failed to update credits' }, { status: 500 })
+    if (error) {
+      console.error('Error updating credits:', error)
+      return NextResponse.json(
+        { error: 'Failed to update credits' },
+        { status: 500 }
+      )
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      credits: currentCredits + credits,
-      has_paid: true
+    return NextResponse.json({
+      success: true,
+      credits: newCredits
     })
 
   } catch (error) {
-    console.error('Error in add-credits:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error processing request:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 } 
