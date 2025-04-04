@@ -3,30 +3,67 @@
 import { getCurrentUser } from '@/lib/auth';
 import { CREDIT_PLANS, PlanId, createCheckoutSession } from '@/lib/stripe';
 import { useRouter } from 'next/navigation';
-import React from 'react';
+import React, { useState } from 'react';
+import LoginModal from './LoginModal';
 
 export default function Pricing() {
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState<PlanId | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const handleSelectPlan = async (planId: PlanId) => {
     try {
       setIsLoading(planId);
       setError(null);
 
-      // Check if user is logged in
-      const user = await getCurrentUser();
-      if (!user) {
-        router.push('/?login=true');
-        return;
-      }
-
-      // Create checkout session
-      await createCheckoutSession(planId);
+      // Always show login modal first without checking session
+      // This way we avoid the "No active session" error
+      setShowLoginModal(true);
+      
+      // The actual checkout will happen in handleLoginSuccess
+      // after successful login
     } catch (err: any) {
       console.error('Error selecting plan:', err);
       setError(err.message || 'Failed to create checkout session');
+    } finally {
+      setIsLoading(null);
+    }
+  };
+
+  const handleLoginModalClose = () => {
+    setShowLoginModal(false);
+  };
+
+  const handleLoginSuccess = async () => {
+    try {
+      // Verify user is actually logged in
+      const { data, error } = await getCurrentUser();
+      
+      if (error || !data?.user) {
+        console.error('Login was not successful', error);
+        return;
+      }
+      
+      // Close the login modal since we're now logged in
+      setShowLoginModal(false);
+      
+      // User has successfully logged in, proceed with the selected plan
+      if (isLoading) {
+        try {
+          console.log('Creating checkout session for plan:', isLoading);
+          await createCheckoutSession(isLoading);
+        } catch (err: any) {
+          console.error('Error creating checkout after login:', err);
+          setError(err.message || 'Failed to create checkout session');
+        }
+      } else {
+        console.error('No plan selected');
+        setError('No plan was selected. Please select a plan.');
+      }
+    } catch (err: any) {
+      console.error('Error in login success handler:', err);
+      setError(err.message || 'An error occurred after login');
     } finally {
       setIsLoading(null);
     }
@@ -200,7 +237,6 @@ export default function Pricing() {
                 <p className="text-gray-600">Save your cover letters in your account</p>
               </div>
             </div>
-
           </div>
         </div>
 
@@ -239,6 +275,14 @@ export default function Pricing() {
           </div>
         </div>
       </div>
+
+      {/* Login Modal */}
+      {showLoginModal && (
+        <LoginModal 
+          onClose={handleLoginModalClose} 
+          onSuccess={handleLoginSuccess}
+        />
+      )}
     </div>
   );
 } 
