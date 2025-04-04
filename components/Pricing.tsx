@@ -17,12 +17,18 @@ export default function Pricing() {
       setIsLoading(planId);
       setError(null);
 
-      // Always show login modal first without checking session
-      // This way we avoid the "No active session" error
-      setShowLoginModal(true);
+      // First check if user is already logged in
+      const user = await getCurrentUser();
       
-      // The actual checkout will happen in handleLoginSuccess
-      // after successful login
+      if (!user || !user.data?.user) {
+        // Only show login modal if user is not logged in
+        setShowLoginModal(true);
+        return;
+      }
+      
+      // User is already logged in, proceed directly with checkout
+      await createCheckoutSession(planId);
+      
     } catch (err: any) {
       console.error('Error selecting plan:', err);
       setError(err.message || 'Failed to create checkout session');

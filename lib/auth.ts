@@ -30,7 +30,7 @@ export const getCurrentUser = async () => {
     const session = await getSession();
     
     if (!session?.user) {
-      return { data: { user: null, profile: null }, error: new Error('No active session') };
+      return { data: { user: null, profile: null } };
     }
 
     // Get profile data
