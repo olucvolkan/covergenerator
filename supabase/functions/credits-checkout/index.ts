@@ -111,14 +111,17 @@ serve(async (req) => {
                    req.headers.get('origin') || 
                    'https://cvtoletter.com';
 
-    const finalSuccessUrl = success_url?.includes('undefined') 
-      ? `${baseUrl}/success`
+    // Properly handle the case where success_url starts with "undefined"
+    const finalSuccessUrl = !success_url || success_url.startsWith('undefined') 
+      ? `${baseUrl}/success` 
       : success_url;
 
-    const finalCancelUrl = cancel_url?.includes('undefined')
+    const finalCancelUrl = !cancel_url || cancel_url.startsWith('undefined')
       ? `${baseUrl}/pricing`
       : cancel_url;
     
+    // Add session ID to success URL for tracking
+    const enhancedSuccessUrl = `${finalSuccessUrl}${finalSuccessUrl.includes('?') ? '&' : '?'}session_id=${Date.now()}`;
     
     console.log('Validating price ID:', price_id);
     try {
@@ -208,7 +211,7 @@ serve(async (req) => {
         },
       ],
       mode: 'payment',
-      success_url: finalSuccessUrl,
+      success_url: enhancedSuccessUrl,
       cancel_url: finalCancelUrl,
       metadata: metadata || {},
       payment_intent_data: {
@@ -220,7 +223,23 @@ serve(async (req) => {
     
     const session = await stripe.checkout.sessions.create(sessionParams);
 
-    console.log('Checkout session created:', session.id);
+    // Store the checkout session in Supabase
+    const { error: sessionError } = await supabase
+      .from('checkout_sessions')
+      .insert({
+        session_id: session.id,
+        user_id: user_id,
+        price_id: price_id,
+        credits: metadata?.credits || 0,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        metadata: metadata || {}
+      });
+
+    if (sessionError) {
+      console.error('Error storing checkout session:', sessionError);
+      throw sessionError;
+    }
 
     return new Response(JSON.stringify({ 
       sessionId: session.id,

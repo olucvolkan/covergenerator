@@ -84,7 +84,7 @@ export const createCheckoutSession = async (planId: PlanId, stripePriceId?: stri
     }
     
     // CLIENT_REDIRECT değişkenini oku
-    const clientRedirect = process.env.NEXT_PUBLIC_CLIENT_REDIRECT;
+    const clientRedirect = process.env.NEXT_PUBLIC_CLIENT_REDIRECT || 'https://cvtoletter.com';
     
     // Call updated Edge Function endpoint
     const response = await fetch('https://fniqovomddsjdsodaxbh.supabase.co/functions/v1/credits-checkout', {

@@ -196,6 +196,20 @@ export const handler = async (req: Request) => {
           console.error('Error updating profile with credits:', error)
           throw error
         }
+
+        // Update checkout session status
+        const { error: sessionUpdateError } = await supabase
+          .from('checkout_sessions')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('session_id', session.id)
+
+        if (sessionUpdateError) {
+          console.error('Error updating checkout session status:', sessionUpdateError)
+          // Don't throw error here as credits were already added successfully
+        }
         
         // Log successful processing
         await logWebhookEvent(event.type, event.id, session, true);
