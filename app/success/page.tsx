@@ -10,7 +10,7 @@ export default function SuccessPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
-  const sessionId = searchParams.get('session_id')
+  const sessionId = searchParams?.get('session_id')
 
   useEffect(() => {
     const processPayment = async () => {
