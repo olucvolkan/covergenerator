@@ -5,6 +5,25 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@12.0.0'
 
+const allowedOrigins = [
+  'https://cvtoletter.com',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://cvtoletter.com',
+  'https://www.cvtoletter.com',
+  'http://cvtoletter.com',
+  'http://covergen-wild-mountain-3122.fly.dev',
+  'https://api.stripe.com',
+  '*'
+]
+
+const corsHeaders = () => ({
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': '*',
+  'Access-Control-Max-Age': '86400',
+})
+
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
   apiVersion: '2023-10-16',
   httpClient: Stripe.createFetchHttpClient(),
@@ -37,22 +56,43 @@ async function logWebhookEvent(eventType: string, stripeEventId: string, payload
 }
 
 export const handler = async (req: Request) => {
-  const signature = req.headers.get('stripe-signature')
-
-  if (!signature) {
-    await logWebhookEvent('unknown', 'none', {}, false, 'No signature found');
-    return new Response('No signature found', { status: 400 })
+  console.log('Webhook received:', req.method)
+  const headers = corsHeaders()
+  
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    console.log('Handling OPTIONS request')
+    return new Response('ok', { headers })
   }
 
   try {
     const body = await req.text()
+    console.log('Request body:', body.substring(0, 100) + '...')
+    console.log('Headers:', JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2))
+    
     const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET')
+    console.log('Webhook secret:', webhookSecret ? 'Present' : 'Missing')
     
     if (!webhookSecret) {
+      console.error('Webhook signing secret is not configured')
       await logWebhookEvent('unknown', 'none', {}, false, 'Webhook signing secret is not configured');
       throw new Error('Webhook signing secret is not configured')
     }
-    
+
+    // Get the signature from the Stripe-Signature header
+    const signature = req.headers.get('Stripe-Signature') || req.headers.get('stripe-signature')
+    console.log('Stripe signature:', signature ? 'Present' : 'Missing')
+
+    if (!signature) {
+      console.error('No stripe signature found in request')
+      await logWebhookEvent('unknown', 'none', {}, false, 'No signature found');
+      return new Response('No signature found', { 
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        status: 400 
+      })
+    }
+
+    console.log('Constructing Stripe event...')
     const event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
     console.log('Webhook event received:', event.type)
 
@@ -66,16 +106,22 @@ export const handler = async (req: Request) => {
         const customerId = session.customer as string
         
         if (!clientReferenceId) {
-          await logWebhookEvent(event.type, event.id, session, false, 'No user ID found in session');
+          await logWebhookEvent('unknown', event.id, session, false, 'No user ID found in session');
           throw new Error('No user ID found in session')
         }
         
         console.log('Processing completed checkout for user:', clientReferenceId)
         
-        // Get payment intent to access metadata
+        // Get credits from session metadata or payment intent
         let credits = 0
         
-        if (session.payment_intent) {
+        // First try to get from session metadata
+        if (session.metadata && session.metadata.credits) {
+          credits = parseInt(session.metadata.credits, 10)
+        }
+        
+        // If not found in session metadata, try payment intent
+        if (!credits && session.payment_intent) {
           const paymentIntentId = 
             typeof session.payment_intent === 'string' 
               ? session.payment_intent 
@@ -83,7 +129,6 @@ export const handler = async (req: Request) => {
           
           const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
           
-          // Extract credits from metadata
           if (paymentIntent.metadata && paymentIntent.metadata.credits) {
             credits = parseInt(paymentIntent.metadata.credits, 10)
           }
@@ -91,17 +136,16 @@ export const handler = async (req: Request) => {
         
         // Fallback if metadata is missing - lookup by price
         if (!credits && session.line_items) {
-          // For line items we need to use checkout session items API to get details
           const lineItems = await stripe.checkout.sessions.listLineItems(session.id)
           
           if (lineItems.data && lineItems.data.length > 0) {
             const item = lineItems.data[0]
             
             // Map prices to credits based on your plan
-            const starterPriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_STARTER') || 'price_1R9Ays09K2M4O1H8CtFYXcwQ';
-            const basicPriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_BASIC') || 'price_1R9B0009K2M4O1H8aw4Wvf7w';
-            const premiumPriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_PREMIUM') || 'price_1R9B0t09K2M4O1H83v9KK97c';
-            const enterprisePriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE') || 'price_1R9B1c09K2M4O1H8e0MuOQYo';
+            const starterPriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_STARTER') || '';
+            const basicPriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_BASIC') || '';
+            const premiumPriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_PREMIUM') || '';
+            const enterprisePriceId = Deno.env.get('NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE') || '';
             
             const priceToCredits: Record<string, number> = {
               [starterPriceId]: 5,    // Starter
@@ -115,12 +159,10 @@ export const handler = async (req: Request) => {
             }
           }
         }
-        
-        // Fallback if we still don't have credits
+
         if (!credits) {
-          // Default to smallest package
-          credits = 5
-          console.warn('Could not determine credits from metadata or price, using default 5 credits')
+          await logWebhookEvent('unknown', event.id, session, false, 'Could not determine credits amount');
+          throw new Error('Could not determine credits amount')
         }
         
         console.log(`Adding ${credits} credits to user ${clientReferenceId}`)
@@ -165,8 +207,6 @@ export const handler = async (req: Request) => {
         const paymentIntent = event.data.object as Stripe.PaymentIntent
         await logWebhookEvent(event.type, event.id, paymentIntent, true);
         console.log('Payment intent succeeded:', paymentIntent.id)
-        
-        // Additional processing can be done here if needed
         break
       }
       
@@ -175,14 +215,12 @@ export const handler = async (req: Request) => {
         const errorMessage = paymentIntent.last_payment_error?.message || 'Payment failed';
         await logWebhookEvent(event.type, event.id, paymentIntent, false, errorMessage);
         console.error('Payment failed:', paymentIntent.id, errorMessage)
-        
-        // Could send an alert email or log for admin review
         break
       }
     }
 
     return new Response(JSON.stringify({ success: true }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (err) {
@@ -200,7 +238,7 @@ export const handler = async (req: Request) => {
       error: err instanceof Error ? err.message : 'Unknown error',
       stack: err instanceof Error ? err.stack : undefined
     }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
       status: 400,
     })
   }

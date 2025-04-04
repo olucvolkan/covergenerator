@@ -111,32 +111,8 @@ serve(async (req) => {
                    req.headers.get('origin') || 
                    'https://cvtoletter.com';
 
-    // Encrypt credits value
-    const creditSecretId = Deno.env.get('CREDIT_SECRET_ID')
-    if (!creditSecretId) {
-      throw new Error('CREDIT_SECRET_ID is not configured')
-    }
-
-    const iv = crypto.getRandomValues(new Uint8Array(16))
-    const cipher = await crypto.subtle.encrypt(
-      {
-        name: "AES-GCM",
-        iv: iv
-      },
-      creditSecretId,
-      new TextEncoder().encode(metadata.credits.toString())
-    )
-
-    const encryptedCredits = Array.from(new Uint8Array(cipher))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-
-    const ivHex = Array.from(iv)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-
     const finalSuccessUrl = success_url?.includes('undefined') 
-      ? `${baseUrl}/success?ec=${encryptedCredits}&iv=${ivHex}`
+      ? `${baseUrl}/success`
       : success_url;
 
     const finalCancelUrl = cancel_url?.includes('undefined')
@@ -148,26 +124,10 @@ serve(async (req) => {
     try {
       // List all prices first to debug
       const prices = await stripe.prices.list({
-        limit: 100,
+        limit: 10,
         active: true
       });
-      console.log('Available prices:', prices.data.map(p => ({
-        id: p.id,
-        active: p.active,
-        currency: p.currency,
-        product: p.product
-      })));
 
-      const price = await stripe.prices.retrieve(price_id);
-      console.log('Price found:', {
-        id: price.id,
-        active: price.active,
-        currency: price.currency,
-        product: price.product,
-        type: price.type,
-        unit_amount: price.unit_amount,
-        created: price.created
-      });
     } catch (priceError) {
       console.error('Error retrieving price:', {
         error: priceError instanceof Error ? priceError.message : 'Unknown error',
@@ -247,9 +207,10 @@ serve(async (req) => {
           quantity: 1,
         },
       ],
-      mode: 'payment' as Stripe.Checkout.SessionCreateParams.Mode,
+      mode: 'payment',
       success_url: finalSuccessUrl,
       cancel_url: finalCancelUrl,
+      metadata: metadata || {},
       payment_intent_data: {
         metadata: metadata || {}
       }

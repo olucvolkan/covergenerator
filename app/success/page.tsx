@@ -12,7 +12,7 @@ export default function SuccessPage() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    const checkSession = async () => {
+    const checkPaymentStatus = async () => {
       try {
         // Get current session
         const { data: { session } } = await supabase.auth.getSession()
@@ -23,46 +23,35 @@ export default function SuccessPage() {
           return
         }
 
-        // Get hashed credits from URL params
-        const hashedCredits = searchParams?.get('credits')
-        if (!hashedCredits) {
-          setStatus('error')
-          setMessage('No credits information found')
-          return
+        // Get user's profile to check credits
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('credits')
+          .eq('id', session.user.id)
+          .single()
+
+        if (profileError) {
+          throw new Error('Failed to fetch profile')
         }
 
-        // Add credits to user's account
-        const response = await fetch('/api/add-credits', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ hashedCredits })
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to add credits')
+        if (profile) {
+          setStatus('success')
+          setMessage(`Payment successful! Your current credit balance is ${profile.credits}.`)
+          
+          // Redirect to home page after 3 seconds
+          setTimeout(() => {
+            router.push('/')
+          }, 3000)
         }
-
-        const data = await response.json()
-        setStatus('success')
-        setMessage(`Payment successful! Credits have been added to your account.`)
-
-        // Redirect to home page after 3 seconds
-        setTimeout(() => {
-          router.push('/')
-        }, 3000)
 
       } catch (error) {
-        console.error('Error verifying session:', error)
+        console.error('Error checking payment status:', error)
         setStatus('error')
         setMessage(error instanceof Error ? error.message : 'An error occurred')
       }
     }
 
-    checkSession()
+    checkPaymentStatus()
   }, [router, searchParams])
 
   return (
@@ -73,7 +62,8 @@ export default function SuccessPage() {
             <div className="mb-4">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Processing your payment...</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Verifying your payment...</h2>
+            <p className="text-gray-600">Please wait while we confirm your credit purchase</p>
           </div>
         )}
 

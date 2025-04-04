@@ -1,0 +1,43 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+When it comes to adding credits to a user's account after a payment, there are indeed potential security issues with the approach you're currently using. I can see that in your code, specifically in the app/success/page.tsx file, you're relying on URL parameters to determine how many credits to add to the user's account.
+This approach has a significant vulnerability: a malicious user could modify the URL parameters to add more credits than they paid for. For example, they could change ?credits=5 to ?credits=500.
+Here's a more secure approach:
+
+Store payment intent metadata server-side: When creating the checkout session, store information about the purchased credits in the payment intent's metadata (which you're already doing).
+Verify payment server-side: When the payment succeeds, the credits should be added by your webhook handler, not by the frontend.
+Use webhook confirmation first: The Stripe webhook (credits-webhook function) should be the primary mechanism for adding credits, not the success page redirect.
+Success page should only display confirmation: The success page should only display a confirmation message and check if credits have been added, not add them itself.
+
+In your current code:
+
+You have two approaches running in parallel:
+
+The webhook handler (supabase/functions/credits-webhook/index.ts) adds credits when it receives a checkout.session.completed event
+The success page (app/success/page.tsx) also tries to add credits based on URL parameters
+
+
+This creates potential race conditions and duplicate credit additions.
+
+Here's how to implement a more secure approach:
+
+Modify your webhook handler (which looks good overall) to ensure it's the only place that adds credits.
+Change your success page to check if credits were added but not add them directly:
+
+
+
+
+This approach has several advantages:
+
+Credits are only added by the Stripe webhook, which is more secure
+The success page simply checks if credits were added rather than adding them directly
+This prevents duplicate credit additions
+It prevents users from manipulating the URL to add more credits
+
+Additionally, you could add a transaction record in your database each time credits are added, which would help with auditing and troubleshooting.
