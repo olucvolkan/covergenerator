@@ -6,7 +6,7 @@ import { checkUserCredits, useCredit } from '@/lib/stripe';
 import React, { useEffect, useRef, useState } from 'react';
 import LoginModal from './LoginModal';
 import MatchAnalysis from './MatchAnalysis';
-import PlanSelector from './PlanSelector';
+import Pricing from './Pricing';
 
 const CoverLetterGenerator = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -95,23 +95,30 @@ const CoverLetterGenerator = () => {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   
+   // First, check if user is logged in
+    if (!user) {
+      setShowLoginModal(true);
+      setError("Please log in to upload files.");
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+
     setError(null);
     setWarning(null);
     setUploadSuccess(false);
+    
+ 
     
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       
       if (validatePdfFile(selectedFile)) {
         setFile(selectedFile);
-        
-        // If user is logged in, upload the file to Supabase
-        if (user) {
-          await handleFileUpload(selectedFile);
-        } else {
-          setShowLoginModal(true);
-          setError("Authentication required: You must be logged in to upload files to Supabase Storage.");
-        }
+        await handleFileUpload(selectedFile);
       } else {
         // Reset file input
         if (fileInputRef.current) {
@@ -191,24 +198,31 @@ const CoverLetterGenerator = () => {
     setWarning(null);
     setUploadSuccess(false);
     
+    // First, check if user is logged in
+    if (!user) {
+      setShowLoginModal(true);
+      setError("Please log in to upload files.");
+      return;
+    }
+    
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const droppedFile = e.dataTransfer.files[0];
       
       if (validatePdfFile(droppedFile)) {
         setFile(droppedFile);
-        
-        // If user is logged in, upload the file to Supabase
-        if (user) {
-          await handleFileUpload(droppedFile);
-        } else {
-          setShowLoginModal(true);
-          setError("Authentication required: You must be logged in to upload files to Supabase Storage.");
-        }
+        await handleFileUpload(droppedFile);
       }
     }
   };
 
   const handleUploadClick = () => {
+    // Check if user is logged in first
+    if (!user) {
+      setShowLoginModal(true);
+      setError("Please log in to upload files.");
+      return;
+    }
+    
     // Programmatically trigger file input click
     fileInputRef.current?.click();
   };
@@ -303,33 +317,51 @@ const CoverLetterGenerator = () => {
   };
 
   const handlePlanSelected = () => {
-    // After plan is selected, check credits again and redirect back to main app
+    // After plan is selected, return to the main app
     setShowPlanSelector(false);
     
-    // Refresh user credits
-    if (user?.user) {
+    // Refresh user credits to check if the user bought any
+    if (user?.user?.id) {
       checkUserCredits(user.user).then(creditsInfo => {
         setUserCredits(creditsInfo.credits || 0);
+        
+        // Only attempt to upload file if user has credits
+        if (creditsInfo.credits > 0 && file && !uploadedFilePath) {
+          // Continue with the actual upload now
+          handleFileUploadAfterPlanSelection(file);
+        } else if (creditsInfo.credits <= 0 && file) {
+          // User still doesn't have credits
+          setError("You need to purchase credits to upload files.");
+        }
+      })
+      .catch(err => {
+        console.error("Error checking credits:", err);
+        setError("Error checking credits. Please try again.");
       });
-    }
-    
-    // If there's a file selected but not uploaded, upload it now
-    if (file && !uploadedFilePath && user) {
-      // Continue with the actual upload now
-      handleFileUploadAfterPlanSelection(file);
+    } else {
+      // User is not properly authenticated
+      setError("Authentication error: User information is missing. Please log in again.");
+      setShowLoginModal(true);
     }
   };
   
   // New function to handle upload after plan selection
   const handleFileUploadAfterPlanSelection = async (fileToUpload: File) => {
+    // Make sure user is valid and has an ID before proceeding
+    if (!user || !user.user || !user.user.id) {
+      setError("Authentication error: User information is missing. Please log in again.");
+      setShowLoginModal(true);
+      return;
+    }
+    
     setIsUploading(true);
     setError(null);
     setWarning(null);
     setUploadSuccess(false);
     
     try {
-      // Upload PDF to Supabase Storage
-      const result = await uploadPDF(fileToUpload, user.id);
+      // Upload PDF to Supabase Storage - use user.user.id instead of user.id
+      const result = await uploadPDF(fileToUpload, user.user.id);
       
       setUploadedFilePath(result.path);
       setUploadedFileId(result.id);
@@ -346,6 +378,9 @@ const CoverLetterGenerator = () => {
       } else if (err.message && err.message.includes('logged in')) {
         setError(err.message);
         setShowLoginModal(true);
+      } else if (err.message && err.message.includes('user_id')) {
+        setError("Error: User ID is missing. Please log in again.");
+        setShowLoginModal(true);
       } else {
         setError(`Error uploading file: ${err.message || 'Unknown error'}`);
       }
@@ -354,12 +389,11 @@ const CoverLetterGenerator = () => {
     }
   };
 
-  // If showing plan selector, render that instead of main app
+  // If showing plan selector, render Pricing component instead of main app
   if (showPlanSelector) {
-    return <PlanSelector 
-      onSelectFreePlan={handlePlanSelected} 
-      user={user} 
-      setShowLoginModal={setShowLoginModal}
+    return <Pricing 
+      showBackButton={true}
+      onBackToCoverLetterGenerator={handlePlanSelected}
     />;
   }
 
@@ -384,7 +418,7 @@ const CoverLetterGenerator = () => {
                   onClick={() => setShowPlanSelector(true)}
                   className="ml-4 text-sm bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700"
                 >
-                  Buy Credits
+                  Purchase Credits
                 </button>
               )}
             </div>
@@ -480,7 +514,7 @@ const CoverLetterGenerator = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
                       </div>
-                      <p className="text-lg font-medium text-gray-700">PDF or Word format (Max 10MB)</p>
+                      <p className="text-lg font-medium text-gray-700">PDF format (Max 10MB)</p>
                       <p className="text-sm text-gray-500">Drag and drop or click to browse</p>
                     </div>
                   </>
@@ -542,7 +576,7 @@ const CoverLetterGenerator = () => {
             ) : !user ? (
               'Login to Continue'
             ) : userCredits <= 0 ? (
-              'Purchase Credits to Generate'
+              'Purchase Credits to Continue'
             ) : !uploadedFilePath ? (
               'Upload CV First'
             ) : !jobDescription ? (

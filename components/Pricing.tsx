@@ -6,7 +6,12 @@ import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
 import LoginModal from './LoginModal';
 
-export default function Pricing() {
+interface PricingProps {
+  onBackToCoverLetterGenerator?: () => void;
+  showBackButton?: boolean;
+}
+
+export default function Pricing({ onBackToCoverLetterGenerator, showBackButton = false }: PricingProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState<PlanId | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -78,6 +83,21 @@ export default function Pricing() {
   return (
     <div className="bg-gray-50 min-h-screen py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Back Button */}
+        {showBackButton && onBackToCoverLetterGenerator && (
+          <div className="mb-8">
+            <button 
+              onClick={onBackToCoverLetterGenerator}
+              className="flex items-center text-blue-600 hover:text-blue-800"
+            >
+              <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back to Cover Letter Generator
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">

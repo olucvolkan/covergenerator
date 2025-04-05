@@ -1,13 +1,30 @@
-import { supabase } from './auth'
+import { supabase } from './auth';
 
 export const uploadPDF = async (file: File, userId: string) => {
-  // Upload file to storage
+  // Validate userId to prevent database constraint violations
+  if (!userId) {
+    throw new Error("User ID is required for file upload. Please log in again.");
+  }
+  
+  // Create a unique filename with timestamp to avoid conflicts
+  const timestamp = new Date().getTime();
+  const fileNameParts = file.name.split('.');
+  const fileExtension = fileNameParts.pop();
+  const fileNameWithoutExtension = fileNameParts.join('.');
+  
+  // Make the original filename unique by adding timestamp
+  const uniqueFileName = `${fileNameWithoutExtension}_${timestamp}.${fileExtension}`;
+  
+  // Upload file to storage with unique filename
   const { data: storageData, error: storageError } = await supabase.storage
     .from('resumes')
-    .upload(`${userId}/${file.name}`, file)
+    .upload(`${userId}/${uniqueFileName}`, file)
 
   if (storageError) {
-    throw storageError
+    console.error('Storage error:', storageError);
+    // If the error is not about existing files, throw it
+    // Otherwise we shouldn't get here anymore with our timestamp approach
+    throw storageError;
   }
 
   // Insert record into user_files table
@@ -17,7 +34,7 @@ export const uploadPDF = async (file: File, userId: string) => {
       {
         user_id: userId,
         file_path: storageData.path,
-        file_name: file.name,
+        file_name: uniqueFileName, // Store the unique filename
         file_type: file.type,
         file_size: file.size,
         storage_bucket: 'resumes',
