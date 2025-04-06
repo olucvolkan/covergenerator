@@ -1,0 +1,75 @@
+// Functions to update in components/CoverLetterGenerator.tsx
+
+// handleGenerateCoverLetter function now handles missing file_id by using the most recent file
+const handleGenerateCoverLetter = async () => {
+  // Clear any previous error
+  setError(null);
+  
+  // Validation check
+  if (!user?.user) {
+    setError('You must be logged in to generate a cover letter');
+    setShowLoginModal(true);
+    return;
+  }
+  
+  if (!jobDescription.trim()) {
+    setError('Please enter a job description');
+    return;
+  }
+
+  if (userCredits <= 0) {
+    setError('You need credits to generate a cover letter');
+    setShowPlanSelector(true);
+    return;
+  }
+
+  setIsGenerating(true);
+  setError(null);
+
+  try {
+    // We will let the backend find the most recent file if uploadedFileId is not available
+    console.log("Generating cover letter with:", {
+      userId: user.user.id,
+      fileId: uploadedFileId || 'will use most recent file',
+      jobDescriptionLength: jobDescription.length
+    });
+    
+    // Use one credit
+    const creditResult = await useCredit(user.user.id);
+    
+    if (!creditResult.success) {
+      throw new Error(creditResult.error || 'Failed to use credit');
+    }
+    
+    // Update local credits count
+    setUserCredits(creditResult.remainingCredits || 0);
+    
+    // Call our API endpoint with JSON body
+    const response = await fetch('/api/generate-cover-letter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        job_description: jobDescription,
+        user_id: user.user.id,
+        file_id: uploadedFileId // Backend will handle null/undefined file_id
+      }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to generate cover letter');
+    }
+
+    const data = await response.json();
+    setCoverLetter(data.cover_letter);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Failed to generate cover letter';
+    console.error("Generation error:", errorMsg);
+    setError(errorMsg);
+  } finally {
+    setIsGenerating(false);
+  }
+};
