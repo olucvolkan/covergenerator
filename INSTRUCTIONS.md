@@ -1,27 +1,41 @@
-# Automatic CV File ID Implementation
+# Fix User ID Mapping for Extension
 
-This branch modifies the cover letter generation process to automatically use the most recently uploaded CV file when no file_id is provided.
+## Problem
 
-## Files Changed
+The extension is using Google's user ID (e.g., `116884556676482662951`) instead of the Supabase user ID, causing `file_id` lookup failures.
 
-1. `app/api/generate-cover-letter/route.ts` - Enhanced to find the most recent CV file for a user when no file_id is provided
-2. `components/CoverLetterGenerator.tsx.part` - Updated to work with the new backend behavior
+## Changes Made
 
-## For CoverLetterGenerator.tsx
+1. **Enhanced User ID Mapping in API:**
+   - Modified `app/api/generate-cover-letter/route.ts` to detect Google IDs and map them to Supabase user IDs
+   - Attempts multiple lookup strategies to find the correct user
 
-Update the `handleGenerateCoverLetter` function based on the code in `components/CoverLetterGenerator.tsx.part`. The key change is that we no longer require `uploadedFileId` to be set - the backend will handle finding the most recent file.
+2. **Added External ID Storage:**
+   - Updated `lib/auth.ts` to store external provider IDs in the profiles table
+   - Added `external_id` field to the profile creation process
 
-## How It Works
+3. **Added User Mapping API Endpoint:**
+   - Created `app/api/auth/mapping/route.ts` for external services to map IDs
+   - Provides a dedicated endpoint for ID translation
 
-1. When a cover letter generation request is made without a file_id, the backend API will:
-   - Query the database for the most recent file uploaded by the user
-   - Use that file_id for the cover letter generation
-   - Return an appropriate error if no files are found
+## When Using Google Login
 
-2. This approach means that even if a file was uploaded in a previous session, the system will still be able to generate a cover letter without requiring a new upload.
+When a user logs in with Google, we now:
+1. Store their Google ID in the profiles table as `external_id`
+2. When the extension sends a request with a Google ID, we map it to the correct Supabase user ID
+3. Use the correct user ID to find the most recent file
 
 ## Testing
 
-1. Login with a user who has previously uploaded at least one CV
-2. Try generating a cover letter without uploading a new CV
-3. The system should automatically use the most recently uploaded CV
+1. Login with a Google account on the main site
+2. Use the extension with the same Google account
+3. The system should correctly map the Google ID to your Supabase user ID
+4. This should resolve the "CV file_id is required" error
+
+## Database Schema Update (Optional)
+
+If the `external_id` column doesn't exist in the profiles table, you might need to add it:
+
+```sql
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS external_id TEXT;
+```
