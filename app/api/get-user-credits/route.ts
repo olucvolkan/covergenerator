@@ -4,53 +4,56 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   try {
+    // Initialize Supabase client
     const supabase = createRouteHandlerClient({ cookies });
 
-    // Get the user's session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Get current session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError || !session) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     const userId = session.user.id;
 
-    // Get user's profile with credits information
+    // Get profile data with credits info
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('credits, generated_cover_letters, has_paid')
       .eq('id', userId)
       .single();
-
+      
     if (profileError) {
       console.error('Error fetching user profile:', profileError);
       return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
     }
 
-    // Get user's latest file (most recently uploaded CV)
-    const { data: latestFiles, error: filesError } = await supabase
+    // Get latest uploaded CV file
+    const { data: latestFiles, error: fileError } = await supabase
       .from('user_files')
       .select('id, file_name, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(1);
-
-    if (filesError) {
-      console.error('Error fetching user files:', filesError);
-      // Continue without file info
+    
+    // Note the change here - using latestFiles[0] instead of expecting a single record
+    const latestFile = latestFiles && latestFiles.length > 0 ? latestFiles[0] : null;
+    
+    if (fileError) {
+      console.error('Error fetching latest file:', fileError);
+      // Continue without the file info, but don't fail the request
     }
 
-    // Construct response
-    const response = {
+    return NextResponse.json({
       credits: profile?.credits || 0,
-      used_credits: profile?.generated_cover_letters || 0,
+      generated_cover_letters: profile?.generated_cover_letters || 0,
       has_paid: profile?.has_paid || false,
-      latest_file: latestFiles && latestFiles.length > 0 ? {
-        id: latestFiles[0].id,
-        name: latestFiles[0].file_name
+      latest_file: latestFile ? {
+        id: latestFile.id,
+        file_name: latestFile.file_name,
+        created_at: latestFile.created_at
       } : null
-    };
-
-    return NextResponse.json(response);
+    });
 
   } catch (error) {
     console.error('Error in get-user-credits:', error);
