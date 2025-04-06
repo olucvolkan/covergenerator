@@ -30,7 +30,7 @@ export const getCurrentUser = async () => {
     const session = await getSession();
     
     if (!session?.user) {
-      return { data: { user: null, profile: null } };
+      return { data: { user: null, profile: null }, error: new Error('No active session') };
     }
 
     // Get profile data
@@ -50,13 +50,18 @@ export const getCurrentUser = async () => {
       const email = session.user.email;
       const fullName = session.user.user_metadata?.full_name || 
                       `${session.user.user_metadata?.first_name || ''} ${session.user.user_metadata?.last_name || ''}`.trim();
+      
+      // Store provider-specific information
+      const externalId = session.user.identities?.[0]?.provider_id || 
+                        session.user.identities?.[0]?.identity_data?.sub || 
+                        null;
 
       if (!email) {
         return { data: { user: session.user, profile: null }, error: new Error('Email is required for profile creation') };
       }
       
       try {
-        await createProfile(session.user.id, email, fullName);
+        await createProfile(session.user.id, email, fullName, externalId);
         
         // Fetch the newly created profile
         const { data: newProfile, error: newProfileError } = await supabase
@@ -85,7 +90,7 @@ export const getCurrentUser = async () => {
 };
 
 // Create profile function
-const createProfile = async (userId: string, email: string, fullName: string) => {
+const createProfile = async (userId: string, email: string, fullName: string, externalId: string | null = null) => {
   if (!userId || !email) {
     throw new Error('User ID and email are required for profile creation');
   }
@@ -107,18 +112,24 @@ const createProfile = async (userId: string, email: string, fullName: string) =>
     }
 
     // Create profile record
+    const profileData = {
+      id: userId,
+      email,
+      full_name: fullName,
+      credits: 0,
+      generated_cover_letters: 0,
+      has_paid: false
+    };
+    
+    // Add external_id if available (like Google ID)
+    if (externalId) {
+      // @ts-ignore - adding a field dynamically
+      profileData.external_id = externalId;
+    }
+    
     const { error: profileError } = await supabase
       .from('profiles')
-      .insert([
-        {
-          id: userId,
-          email,
-          full_name: fullName,
-          credits: 0,
-          generated_cover_letters: 0,
-          has_paid: false
-        }
-      ]);
+      .insert([profileData]);
 
     if (profileError) {
       console.error("Error creating profile:", profileError);
