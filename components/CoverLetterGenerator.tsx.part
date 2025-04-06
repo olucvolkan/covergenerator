@@ -1,0 +1,163 @@
+// Functions to update in components/CoverLetterGenerator.tsx
+
+// 1. The handleFileUpload function:
+const handleFileUpload = async (fileToUpload: File) => {
+  if (!user?.user) {
+    setShowLoginModal(true);
+    setError("Authentication required: You must be logged in to upload files to Supabase Storage.");
+    return;
+  }
+  
+  // Check if user has credits
+  try {
+    const creditsInfo = await checkUserCredits(user.user);
+    setUserCredits(creditsInfo.credits || 0);
+    
+    if (creditsInfo.credits <= 0) {
+      // Direct the user to the plan selector
+      setShowPlanSelector(true);
+      setFile(fileToUpload); // Save the file for later upload after plan selection
+      return;
+    }
+  } catch (err) {
+    // If there's an error checking credits, continue as if they don't have any
+    setShowPlanSelector(true);
+    setFile(fileToUpload);
+    return;
+  }
+  
+  // If we reach here, the user has credits and can upload
+  setIsUploading(true);
+  setError(null);
+  setWarning(null);
+  setUploadSuccess(false);
+  
+  try {
+    // Upload PDF to Supabase Storage
+    const result = await uploadPDF(fileToUpload, user.user.id);
+    
+    if (!result || !result.path) {
+      throw new Error("Upload failed to return a valid result");
+    }
+    
+    setUploadedFilePath(result.path);
+    
+    // Check specifically for file ID
+    if (!result.id) {
+      console.warn("Upload returned path but no file ID:", result);
+      setWarning("File uploaded but ID not returned. Generation may fail.");
+    } else {
+      setUploadedFileId(result.id);
+      console.log("CV uploaded successfully with ID:", result.id);
+    }
+    
+    setUploadSuccess(true);
+    
+    // Show warning if present
+    if (result.warning) {
+      setWarning(result.warning);
+    }
+  } catch (err: any) {
+    // Provide a more detailed error message
+    console.error("File upload error:", err);
+    
+    if (err.message && err.message.includes('bucket')) {
+      setError(err.message);
+    } else if (err.message && err.message.includes('logged in')) {
+      setError(err.message);
+      setShowLoginModal(true);
+    } else {
+      setError(`Error uploading file: ${err.message || 'Unknown error'}`);
+    }
+  } finally {
+    setIsUploading(false);
+  }
+};
+
+// 2. The handleGenerateCoverLetter function:
+const handleGenerateCoverLetter = async () => {
+  // Clear any previous error
+  setError(null);
+  
+  // Validation check
+  if (!user?.user) {
+    setError('You must be logged in to generate a cover letter');
+    setShowLoginModal(true);
+    return;
+  }
+  
+  if (!jobDescription.trim()) {
+    setError('Please enter a job description');
+    return;
+  }
+  
+  if (!uploadedFileId) {
+    setError('Please upload your CV first');
+    console.error("No file ID available. Upload status:", { 
+      file: !!file,
+      uploadSuccess,
+      uploadedFilePath: uploadedFilePath || "none" 
+    });
+    return;
+  }
+
+  if (userCredits <= 0) {
+    setError('You need credits to generate a cover letter');
+    setShowPlanSelector(true);
+    return;
+  }
+
+  setIsGenerating(true);
+  setError(null);
+
+  try {
+    console.log("Generating cover letter with:", {
+      userId: user.user.id,
+      fileId: uploadedFileId,
+      jobDescriptionLength: jobDescription.length
+    });
+    
+    // Use one credit
+    const creditResult = await useCredit(user.user.id);
+    
+    if (!creditResult.success) {
+      throw new Error(creditResult.error || 'Failed to use credit');
+    }
+    
+    // Update local credits count
+    setUserCredits(creditResult.remainingCredits || 0);
+    
+    // Call our API endpoint with JSON body
+    const response = await fetch('/api/generate-cover-letter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        job_description: jobDescription,
+        user_id: user.user.id,
+        file_id: uploadedFileId
+      }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to generate cover letter');
+    }
+
+    const data = await response.json();
+    setCoverLetter(data.cover_letter);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Failed to generate cover letter';
+    console.error("Generation error:", errorMsg);
+    setError(errorMsg);
+    
+    // If the error indicates missing file_id, provide a clearer message
+    if (errorMsg.includes('file_id') || errorMsg.includes('CV found')) {
+      setError('No CV file was found. Please upload your CV and try again.');
+    }
+  } finally {
+    setIsGenerating(false);
+  }
+};
