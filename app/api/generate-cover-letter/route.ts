@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { validate as uuidValidate } from 'uuid';
+
 
 export async function POST(request: Request) {
   try {
@@ -29,12 +31,13 @@ export async function POST(request: Request) {
     
     // STEP 1: Find the actual Supabase user by external_id (should be Google ID)
     console.log(`Finding user with external_id: ${user_id}`);
-    
     const { data: userProfile, error: userError } = await supabase
       .from('profiles')
       .select('id, full_name')
-      .eq('external_id', user_id)
+      .eq(uuidValidate(user_id) ? 'id': 'external_id', user_id)
       .single();
+    
+ 
     
     if (userError || !userProfile) {
       console.error('Error finding user by external_id:', userError);

@@ -52,7 +52,7 @@ export const getCurrentUser = async () => {
                       `${session.user.user_metadata?.first_name || ''} ${session.user.user_metadata?.last_name || ''}`.trim();
       
       // Store provider-specific information
-      const externalId = session.user.identities?.[0]?.provider_id || 
+      const externalId = session.user.identities?.[0]?.provider || 
                         session.user.identities?.[0]?.identity_data?.sub || 
                         null;
 

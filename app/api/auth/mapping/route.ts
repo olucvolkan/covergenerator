@@ -41,7 +41,7 @@ export async function POST(request: Request) {
         // Look for a user with a matching identity
         const matchedUser = users.users.find(user => 
           user.identities?.some(identity => 
-            identity.provider_id === external_id || 
+            identity.provider === external_id || 
             identity.identity_data?.sub === external_id
           )
         );
