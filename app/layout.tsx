@@ -5,7 +5,39 @@ import '../styles/globals.css';
 
 export const metadata: Metadata = {
   title: 'CvToLetter - Cover Letter Generator',
-  description: 'Generate personalized cover letters for your job applications',
+  description: 'Generate personalized cover letters for your job applications in seconds',
+  keywords: 'cover letter, generator, cv to letter, job application, AI cover letter, personalized cover letter',
+  authors: [{ name: 'CvToLetter Team' }],
+  openGraph: {
+    title: 'CvToLetter - AI Powered Cover Letter Generator',
+    description: 'Create tailored cover letters for your job applications with AI technology',
+    url: 'https://cvtoletter.com',
+    siteName: 'CvToLetter',
+    images: [
+      {
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'CvToLetter - AI Cover Letter Generator',
+      }
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'CvToLetter - AI Powered Cover Letter Generator',
+    description: 'Create tailored cover letters for your job applications with AI technology',
+    images: ['/og-image.jpg'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    }
+  },
 };
 
 export default function RootLayout({
