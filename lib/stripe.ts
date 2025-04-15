@@ -219,7 +219,7 @@ export const useCredit = async (userId: string) => {
     
     return { 
       success: true, 
-      remainingCredits: currentCredits,
+      remainingCredits: currentCredits - 1,
       usageCount: currentUsage + 1
     };
   } catch (error) {
