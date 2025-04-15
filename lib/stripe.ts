@@ -194,41 +194,6 @@ export const checkUserCredits = async (user: User) => {
   }
 };
 
-// Update user's credits after successful payment
-export const updateUserCredits = async (userId: string, credits: number) => {
-  try {
-    const supabase = createClientComponentClient();
-    const { data: profile, error: fetchError } = await supabase
-      .from('profiles')
-      .select('credits')
-      .eq('id', userId)
-      .single();
-      
-    if (fetchError) {
-      throw fetchError;
-    }
-    
-    const currentCredits = profile?.credits || 0;
-    const newCredits = currentCredits + credits;
-    
-    const { error } = await supabase
-      .from('profiles')
-      .update({ 
-        credits: newCredits
-      })
-      .eq('id', userId);
-
-    if (error) {
-      throw error;
-    }
-
-    return { success: true, credits: newCredits };
-  } catch (error) {
-    console.error('Error updating user credits:', error);
-    return { success: false, error };
-  }
-}; 
-
 // Decrement user's credits after generating a cover letter
 export const useCredit = async (userId: string) => {
   try {
@@ -252,22 +217,9 @@ export const useCredit = async (userId: string) => {
       return { success: false, error: 'No credits available' };
     }
     
-    // Update credits and increment usage counter
-    const { error } = await supabase
-      .from('profiles')
-      .update({ 
-        credits: currentCredits - 1,
-        generated_cover_letters: currentUsage + 1
-      })
-      .eq('id', userId);
-
-    if (error) {
-      throw error;
-    }
-
     return { 
       success: true, 
-      remainingCredits: currentCredits - 1,
+      remainingCredits: currentCredits,
       usageCount: currentUsage + 1
     };
   } catch (error) {
