@@ -83,14 +83,15 @@ export async function POST(request: Request) {
       const errorText = await apiResponse.text();
       console.error('API Error:', errorText);
       
-      // If there was an error, refund the credit
-      await supabase
-        .from('profiles')
-        .update({ 
-          credits: creditResult.remainingCredits + 1,  // Add the credit back
-        })
-        .eq('id', user_id);
+      if (creditResult !== undefined && creditResult.remainingCredits) {
+        await supabase
+          .from('profiles')
+          .update({
+            credits: creditResult.remainingCredits + 1,  // Add the credit back
+          })
+          .eq('id', user_id);
         
+      }
       return NextResponse.json(
         { error: 'Failed to generate cover letter' },
         { status: apiResponse.status }
