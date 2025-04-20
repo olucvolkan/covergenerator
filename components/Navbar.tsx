@@ -82,6 +82,10 @@ export default function Navbar() {
             <Link href="/extension-welcome" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
               Extension
             </Link>
+
+            <Link href="/privacy-policy" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+              Privacy Policy
+            </Link>
             
             {loading ? (
               <div className="w-20 h-8 bg-gray-200 animate-pulse rounded-md"></div>
